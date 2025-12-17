@@ -2,342 +2,145 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Arcanum: Final Ritual</title>
     <style>
-        /* --- 全局样式 (Global Styles) --- */
-        body { 
-            margin: 0; 
-            overflow: hidden; 
-            background-color: #000; 
-            font-family: 'Cinzel', 'Noto Serif SC', serif; 
-            user-select: none; 
-        }
-        #canvas-container { 
-            width: 100vw; 
-            height: 100vh; 
-            position: absolute; 
-            top: 0; 
-            left: 0; 
-            z-index: 1; 
-        }
+        body { margin: 0; overflow: hidden; background-color: #000; font-family: 'Cinzel', 'Noto Serif SC', serif; user-select: none; -webkit-tap-highlight-color: transparent; }
+        #canvas-container { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1; }
         
-        /* 引入字体 */
         @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;800&family=Noto+Serif+SC:wght@300;500&display=swap');
 
-        /* --- 初始界面 (Start Screen) --- */
         #start-screen {
-            position: absolute; 
-            top: 0; 
-            left: 0; 
-            width: 100%; 
-            height: 100%;
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             z-index: 100;
             background: radial-gradient(circle at center, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.95) 90%);
-            display: flex; 
-            flex-direction: column; 
-            justify-content: center; 
-            align-items: center;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
             transition: opacity 1.5s cubic-bezier(0.25, 1, 0.5, 1);
             color: #d4af37;
         }
 
-        /* 标题动画与样式 */
-        .title-group { 
-            text-align: center; 
-            margin-bottom: 60px; 
-            position: relative;
-            animation: floatTitle 6s ease-in-out infinite; 
-        }
+        .title-group { text-align: center; margin-bottom: 40px; position: relative; animation: floatTitle 6s ease-in-out infinite; padding: 0 20px; }
         
         h1 { 
-            font-size: 72px; 
-            margin: 0; 
-            letter-spacing: 20px; 
-            font-weight: 800;
+            font-size: 48px; margin: 0; letter-spacing: 10px; font-weight: 800;
             background: linear-gradient(135deg, #fff 0%, #d4af37 50%, #996515 100%);
-            -webkit-background-clip: text; 
-            -webkit-text-fill-color: transparent;
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
             filter: drop-shadow(0 0 20px rgba(212, 175, 55, 0.4));
-            position: relative;
         }
         
         h2 { 
-            font-size: 14px; 
-            font-weight: 400; 
-            letter-spacing: 8px; 
-            color: #a0a0a0; 
-            margin-top: 15px; 
-            text-transform: uppercase; 
-            opacity: 0.8;
-            border-top: 1px solid rgba(212, 175, 55, 0.3);
-            display: inline-block; 
-            padding-top: 15px; 
-            width: 120%; 
-            margin-left: -10%;
+            font-size: 12px; font-weight: 400; letter-spacing: 4px; color: #a0a0a0; 
+            margin-top: 15px; text-transform: uppercase; opacity: 0.8;
+            border-top: 1px solid rgba(212, 175, 55, 0.3); display: inline-block; padding-top: 15px; 
         }
 
-        @keyframes floatTitle {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-10px); }
+        @media (min-width: 768px) {
+            h1 { font-size: 72px; letter-spacing: 20px; }
+            h2 { font-size: 14px; letter-spacing: 8px; }
         }
 
-        /* 选项按钮网格 */
+        @keyframes floatTitle { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+
         .options-grid { 
-            display: grid; 
-            grid-template-columns: 1fr 1fr; 
-            gap: 60px; 
-            margin-bottom: 60px; 
-            text-align: center; 
-            opacity: 0; 
-            animation: fadeUp 1s ease-out 0.5s forwards; 
+            display: grid; grid-template-columns: 1fr 1fr; gap: 30px; 
+            margin-bottom: 40px; text-align: center; 
+            opacity: 0; animation: fadeUp 1s ease-out 0.5s forwards; 
         }
-        .option-group { 
-            display: flex; 
-            flex-direction: column; 
-            gap: 20px; 
-            align-items: center; 
-        }
-        .option-label { 
-            font-size: 11px; 
-            letter-spacing: 3px; 
-            color: #666; 
-            text-transform: uppercase; 
-            margin-bottom: 5px; 
-            font-weight: 600;
-        }
+        @media (max-width: 480px) { .options-grid { display: flex; flex-direction: column; gap: 20px; } }
 
-        /* 胶囊按钮样式 */
+        .option-group { display: flex; flex-direction: column; gap: 10px; align-items: center; }
+        .option-label { font-size: 10px; letter-spacing: 2px; color: #666; text-transform: uppercase; margin-bottom: 5px; font-weight: 600; }
+
         .choice-btn {
-            background: rgba(255, 255, 255, 0.03); 
-            border: 1px solid rgba(212, 175, 55, 0.3); 
-            color: #888;
-            padding: 12px 0; 
-            width: 160px;
-            font-family: inherit; 
-            font-size: 12px; 
-            cursor: pointer;
-            transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
-            border-radius: 50px; 
-            position: relative; 
-            overflow: hidden;
-            backdrop-filter: blur(2px);
+            background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(212, 175, 55, 0.3); color: #888;
+            padding: 10px 0; width: 140px; font-family: inherit; font-size: 12px; cursor: pointer;
+            transition: all 0.3s; border-radius: 50px; backdrop-filter: blur(2px);
         }
-        
-        .choice-btn.active { 
-            border-color: #d4af37; 
-            color: #fff; 
-            background: rgba(212, 175, 55, 0.15); 
-            box-shadow: 0 0 25px rgba(212, 175, 55, 0.15);
-        }
-        
-        .choice-btn:hover { 
-            border-color: #fff; 
-            color: #fff; 
-            transform: translateY(-2px); 
-            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
-        }
+        .choice-btn.active { border-color: #d4af37; color: #fff; background: rgba(212, 175, 55, 0.15); box-shadow: 0 0 20px rgba(212, 175, 55, 0.15); }
 
-        /* 进入按钮特效 */
         #enter-btn {
-            background: transparent; 
-            color: #d4af37; 
-            border: 1px solid #d4af37;
-            padding: 18px 80px; 
-            font-size: 16px; 
-            letter-spacing: 8px; 
-            cursor: pointer;
-            font-family: inherit; 
-            font-weight: 600; 
-            border-radius: 50px; 
-            transition: all 0.5s;
-            position: relative; 
-            overflow: hidden;
-            opacity: 0; 
-            animation: fadeUp 1s ease-out 0.8s forwards;
+            background: transparent; color: #d4af37; border: 1px solid #d4af37;
+            padding: 15px 60px; font-size: 14px; letter-spacing: 6px; cursor: pointer;
+            font-family: inherit; font-weight: 600; border-radius: 50px; 
+            transition: all 0.5s; position: relative; overflow: hidden; opacity: 0; animation: fadeUp 1s ease-out 0.8s forwards;
         }
+        #enter-btn:hover { background: #d4af37; color: #000; box-shadow: 0 0 40px rgba(212, 175, 55, 0.4); transform: scale(1.05); }
+        @keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+        .sparkle { position: absolute; background: white; border-radius: 50%; pointer-events: none; opacity: 0; box-shadow: 0 0 10px #d4af37; animation: sparkleFloat linear forwards; }
+        @keyframes sparkleFloat { 0% { opacity: 0; transform: scale(0); } 50% { opacity: 1; transform: translateY(-30px) scale(1); } 100% { opacity: 0; transform: translateY(-60px) scale(0); } }
+
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 20; pointer-events: none; color: #d4af37; opacity: 0; transition: opacity 1.5s; }
         
-        #enter-btn::before {
-            content: ''; 
-            position: absolute; 
-            top: 0; 
-            left: -100%; 
-            width: 100%; 
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(212, 175, 55, 0.2), transparent);
-            transition: 0.5s;
-        }
-        #enter-btn:hover::before { left: 100%; transition: 0.7s; }
-        #enter-btn:hover { 
-            background: #d4af37; 
-            color: #000; 
-            box-shadow: 0 0 40px rgba(212, 175, 55, 0.4); 
-            transform: scale(1.05); 
-            letter-spacing: 10px;
-        }
-
-        @keyframes fadeUp { 
-            from { opacity: 0; transform: translateY(20px); } 
-            to { opacity: 1; transform: translateY(0); } 
-        }
-
-        /* 神秘学闪光粒子 */
-        .sparkle {
-            position: absolute; 
-            background: white; 
-            border-radius: 50%;
-            pointer-events: none; 
-            opacity: 0;
-            box-shadow: 0 0 10px #d4af37, 0 0 20px #d4af37;
-            animation: sparkleFloat linear forwards;
-        }
-        @keyframes sparkleFloat {
-            0% { opacity: 0; transform: translateY(0) scale(0); }
-            50% { opacity: 1; transform: translateY(-50px) scale(1); }
-            100% { opacity: 0; transform: translateY(-100px) scale(0); }
-        }
-
-        /* --- 游戏内 UI 层 --- */
-        #ui-layer { 
-            position: absolute; 
-            top: 0; 
-            left: 0; 
-            width: 100%; 
-            height: 100%; 
-            z-index: 20; 
-            pointer-events: none; 
-            color: #d4af37; 
-            opacity: 0; 
-            transition: opacity 1.5s; 
-        }
-        
-        /* 历史记录栏 */
         #history-container {
-            position: absolute; 
-            top: 20px; 
-            right: 20px;
-            display: flex; 
-            flex-direction: row; 
-            gap: 15px;
-            pointer-events: auto; 
-            z-index: 30; 
-            height: 100px; 
-            align-items: flex-start;
+            position: absolute; top: 20px; right: 20px;
+            display: flex; flex-direction: row; gap: 10px;
+            pointer-events: auto; z-index: 30; height: 80px; align-items: flex-start;
             transition: opacity 1s ease;
         }
         .history-slot {
-            width: 50px; 
-            height: 85px; 
-            background: #fff; 
-            border: 2px solid #d4af37; 
-            border-radius: 8px; 
-            overflow: hidden;
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            justify-content: flex-end;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.8); 
-            flex-shrink: 0; 
-            position: relative;
-            animation: slotEnter 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+            width: 40px; height: 68px; background: #fff; border: 1px solid #d4af37; border-radius: 4px; overflow: hidden;
+            display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.8); flex-shrink: 0; animation: slotEnter 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
         }
-        @keyframes slotEnter { 
-            from { opacity:0; transform: translateY(-20px); } 
-            to { opacity:1; transform: translateY(0); } 
-        }
+        @media (min-width: 768px) { .history-slot { width: 50px; height: 85px; border-width: 2px; border-radius: 8px; } }
+        @keyframes slotEnter { from { opacity:0; transform: translateY(-20px); } to { opacity:1; transform: translateY(0); } }
         .history-slot img { position: absolute; top:0; left:0; width: 100%; height: 100%; object-fit: cover; }
         .history-info { position: relative; z-index: 2; width: 100%; background: rgba(0,0,0,0.8); text-align: center; padding: 2px 0; border-top: 1px solid #d4af37; }
-        .history-name { font-size: 8px; color: #d4af37; font-weight: 700; white-space: nowrap; transform: scale(0.9); }
-        .history-rev { font-size: 7px; color: #ff3333; display: none; font-weight: bold; background: rgba(0,0,0,0.5); width:100%; }
-        .is-reversed img { transform: rotate(180deg); }
-        .is-reversed .history-rev { display: block; }
+        .history-name { font-size: 8px; color: #d4af37; font-weight: 700; white-space: nowrap; transform: scale(0.8); }
+        .history-rev { font-size: 6px; color: #ff3333; display: none; font-weight: bold; background: rgba(0,0,0,0.5); width:100%; }
+        .is-reversed img { transform: rotate(180deg); } .is-reversed .history-rev { display: block; }
 
-        /* 底部 HUD */
         #hud-center {
-            position: absolute; 
-            bottom: 8%; 
-            left: 50%; 
-            transform: translateX(-50%);
-            text-align: center; 
-            color: #d4af37; 
-            pointer-events: none;
-            width: 100%; 
-            transition: opacity 1s;
+            position: absolute; bottom: 8%; left: 50%; transform: translateX(-50%);
+            text-align: center; color: #d4af37; pointer-events: none; width: 90%; transition: opacity 1s;
         }
-        #gesture-icon { font-size: 32px; display: block; margin-bottom: 10px; opacity: 0.9; text-shadow: 0 0 15px #d4af37;}
-        #status-text { font-size: 11px; letter-spacing: 4px; text-transform: uppercase; font-weight: 600; opacity: 0.8; }
+        #gesture-icon { font-size: 24px; display: block; margin-bottom: 8px; opacity: 0.9; text-shadow: 0 0 15px #d4af37;}
+        #status-text { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; font-weight: 600; opacity: 0.8; }
+        @media (min-width: 768px) { #gesture-icon { font-size: 32px; } #status-text { font-size: 12px; letter-spacing: 4px; } }
 
-        /* 最终结果文字容器 */
         #final-text-container {
-            position: absolute; 
-            top: 72%; 
-            left: 0; 
-            width: 100%;
-            text-align: center; 
-            opacity: 0; 
-            transition: opacity 2s;
-            pointer-events: none; 
-            display: flex; 
-            justify-content: center; 
-            gap: 60px; 
+            position: absolute; top: 70%; left: 0; width: 100%;
+            text-align: center; opacity: 0; transition: opacity 2s;
+            pointer-events: none; display: flex; justify-content: center; 
+            gap: 10px; flex-wrap: nowrap;
         }
         .final-card-label {
-            display: flex; 
-            flex-direction: column; 
-            width: 220px; 
-            color: #fff; 
-            text-shadow: 0 0 10px #d4af37; 
-            text-align: center;
+            display: flex; flex-direction: column; 
+            width: 30vw; max-width: 220px;
+            color: #fff; text-shadow: 0 0 10px #d4af37; text-align: center;
             animation: textFloat 3s ease-in-out infinite alternate;
         }
+        .final-name { 
+            font-size: 12px; font-weight: bold; color: #d4af37; 
+            margin-bottom: 5px; border-bottom: 1px solid rgba(212, 175, 55, 0.3); padding-bottom: 3px; 
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; 
+        }
+        .final-meaning { font-size: 9px; color: #ccc; font-style: italic; line-height: 1.3; opacity: 0.9; }
+        @media (min-width: 768px) {
+            #final-text-container { top: 72%; gap: 60px; }
+            .final-name { font-size: 16px; margin-bottom: 8px; padding-bottom: 5px; }
+            .final-meaning { font-size: 12px; }
+        }
         @keyframes textFloat { from { transform: translateY(0); } to { transform: translateY(-5px); } }
-        
-        .final-name { font-size: 15px; font-weight: bold; color: #d4af37; margin-bottom: 8px; border-bottom: 1px solid rgba(212, 175, 55, 0.3); padding-bottom: 5px; }
-        .final-meaning { font-size: 11px; color: #ccc; font-style: italic; line-height: 1.5; opacity: 0.8; }
 
-        /* 重启按钮区域 */
         #end-ui {
-            position: absolute; 
-            bottom: 12%; 
-            left: 0; 
-            width: 100%;
-            display: flex; 
-            justify-content: center;
-            opacity: 0; 
-            pointer-events: none; 
-            transition: opacity 1.5s; 
-            z-index: 50;
+            position: absolute; bottom: 10%; left: 0; width: 100%;
+            display: flex; justify-content: center;
+            opacity: 0; pointer-events: none; transition: opacity 1.5s; z-index: 50;
         }
         #restart-btn {
-            background: rgba(0,0,0,0.7); 
-            border: 1px solid #d4af37; 
-            color: #d4af37;
-            padding: 12px 50px; 
-            font-size: 13px; 
-            letter-spacing: 4px; 
-            border-radius: 50px; 
-            cursor: pointer; 
-            font-family: inherit; 
-            transition: 0.4s;
+            background: rgba(0,0,0,0.8); border: 1px solid #d4af37; color: #d4af37;
+            padding: 10px 40px; font-size: 12px; letter-spacing: 3px; 
+            border-radius: 50px; cursor: pointer; font-family: inherit; transition: 0.4s;
             backdrop-filter: blur(5px);
         }
-        #restart-btn:hover { background: #d4af37; color: #000; box-shadow: 0 0 25px rgba(212, 175, 55, 0.6); }
-
-        /* --- 制作人员信息 --- */
+        
         #credits {
-            position: absolute; 
-            bottom: 20px; 
-            right: 25px;
-            text-align: right; 
-            color: #a0a0a0; 
-            font-size: 10px;
-            line-height: 1.6; 
-            opacity: 0; 
-            transition: opacity 1.5s;
-            pointer-events: none; 
-            z-index: 50; 
-            font-family: 'Noto Serif SC', serif;
-            letter-spacing: 1px;
+            position: absolute; bottom: 15px; right: 20px;
+            text-align: right; color: #666; font-size: 8px;
+            line-height: 1.4; opacity: 0; transition: opacity 1.5s;
+            pointer-events: none; z-index: 50; font-family: 'Noto Serif SC', serif;
         }
 
         #video-feed { position: absolute; bottom: 10px; right: 10px; width: 100px; opacity: 0; transform: scaleX(-1); pointer-events: none; border: 1px solid #d4af37; transition: opacity 0.5s; }
@@ -357,7 +160,6 @@
             <h1>ARCANUM</h1>
             <h2 id="subtitle">The Virtual Ritual</h2>
         </div>
-
         <div class="options-grid">
             <div class="option-group">
                 <div class="option-label" id="lbl-language">Language / 语言</div>
@@ -367,25 +169,19 @@
             <div class="option-group">
                 <div class="option-label" id="lbl-input">Input / 操控</div>
                 <button class="choice-btn active" onclick="setInput('hand')" id="btn-hand">Hand Gesture ✋</button>
-                <button class="choice-btn" onclick="setInput('mouse')" id="btn-mouse">Mouse 🖱️</button>
+                <button class="choice-btn" onclick="setInput('mouse')" id="btn-mouse">Touch / Mouse 🖱️</button>
             </div>
         </div>
-
         <button id="enter-btn" onclick="enterExperience()">ENTER</button>
     </div>
 
     <div id="ui-layer">
         <div id="history-container"></div>
         <div id="final-text-container"></div>
-        
         <div id="end-ui">
             <button id="restart-btn" onclick="location.reload()">RESTART RITUAL</button>
         </div>
-        
-        <div id="credits">
-            By: Jerry Hu & Gemini <br>huqiuzhi10@gmail.com
-        </div>
-
+        <div id="credits">Jerry Hu & Gemini 制作<br>huqiuzhi10@gmail.com</div>
         <div id="hud-center">
             <span id="gesture-icon">✋</span>
             <div id="status-text">Wave to Turn · Pinch to Select</div>
@@ -396,73 +192,27 @@
     <div id="canvas-container"></div>
 
 <script>
-// 1. 闪光特效逻辑
 function createSparkles() {
     const screen = document.getElementById('start-screen');
     if(screen.style.display === 'none') return; 
-
     const sparkle = document.createElement('div');
     sparkle.className = 'sparkle';
-    
-    // 随机位置
-    const x = Math.random() * 100;
-    const y = Math.random() * 100;
-    sparkle.style.left = x + '%';
-    sparkle.style.top = y + '%';
-    
-    // 随机大小和持续时间
+    sparkle.style.left = Math.random() * 100 + '%';
+    sparkle.style.top = Math.random() * 100 + '%';
     const size = Math.random() * 3 + 1; 
     sparkle.style.width = size + 'px';
     sparkle.style.height = size + 'px';
-    sparkle.style.animationDuration = (Math.random() * 2 + 2) + 's'; 
-    
+    sparkle.style.animationDuration = (Math.random() * 2 + 1) + 's'; 
     screen.appendChild(sparkle);
-
-    // 动画结束后移除
-    setTimeout(() => { sparkle.remove(); }, 4000);
+    setTimeout(() => { sparkle.remove(); }, 3000);
 }
-setInterval(createSparkles, 200);
+setInterval(createSparkles, 300);
 
-
-/**
- * DATA & CONFIG
- */
 const TEXTS = {
-    en: {
-        subtitle: "The Virtual Ritual",
-        lblLang: "Language",
-        lblInput: "Input Method",
-        enter: "ENTER VOID",
-        statusWave: "Wave to Turn · Pinch Center Card",
-        statusMouse: "Move to Turn · Hold Left Click to Grab",
-        statusFist: "FIST TO REVEAL",
-        statusSpace: "SPACE TO REVEAL",
-        statusReveal: "OBSERVING FATE...",
-        statusDone: "RITUAL COMPLETE",
-        rev: "Reversed",
-        restart: "RESTART RITUAL",
-        btnHand: "Hand Gesture ✋", 
-        btnMouse: "Mouse 🖱️"       
-    },
-    zh: {
-        subtitle: "虚拟塔罗仪式",
-        lblLang: "语言设置",
-        lblInput: "操控方式",
-        enter: "进入虚空",
-        statusWave: "挥手转动牌阵 · 捏合手指选中",
-        statusMouse: "移动鼠标转动 · 按住左键抓取",
-        statusFist: "握拳揭示命运",
-        statusSpace: "按空格键揭示",
-        statusReveal: "正在观测命运...",
-        statusDone: "仪式完成",
-        rev: "逆位",
-        restart: "重新开始仪式",
-        btnHand: "手势控制 ✋", 
-        btnMouse: "鼠标控制 🖱️"  
-    }
+    en: { subtitle: "The Virtual Ritual", lblLang: "Language", lblInput: "Input Method", enter: "ENTER VOID", statusWave: "Wave to Turn · Pinch Center Card", statusMouse: "Drag to Turn · Tap to Select", statusFist: "FIST TO REVEAL", statusTap: "TAP AGAIN TO REVEAL", statusSpace: "SPACE TO REVEAL", statusReveal: "OBSERVING FATE...", statusDone: "RITUAL COMPLETE", rev: "Reversed", restart: "RESTART RITUAL", btnHand: "Hand Gesture ✋", btnMouse: "Touch / Mouse 🖱️" },
+    zh: { subtitle: "虚拟塔罗仪式", lblLang: "语言设置", lblInput: "操控方式", enter: "进入虚空", statusWave: "挥手转动牌阵 · 捏合手指选中", statusMouse: "左右滑动转动 · 点击抓取", statusFist: "握拳揭示命运", statusTap: "再次点击牌面揭示", statusSpace: "按空格键揭示", statusReveal: "正在观测命运...", statusDone: "仪式完成", rev: "逆位", restart: "重新开始仪式", btnHand: "手势控制 ✋", btnMouse: "触控 / 鼠标 🖱️" }
 };
 
-// 基础数据 (完整22张)
 const RWS_DATA = [
     { id: 0, en: { name: "The Fool", meaning: "New beginnings, innocence, spontaneity" }, zh: { name: "愚者", meaning: "新的开始，天真，自发性，冒险" } },
     { id: 1, en: { name: "The Magician", meaning: "Manifestation, resourcefulness, power" }, zh: { name: "魔术师", meaning: "显化，资源丰富，力量，创造力" } },
@@ -492,13 +242,10 @@ let currentLang = 'en';
 let controlMode = 'hand'; 
 let isStarted = false;
 let deckList = [];
-
-// Game Logic Params
 const MAX_SELECTION = 3; 
 let selectionCount = 0;
 let isRitualComplete = false;
 let chosen3DMeshes = [];
-
 const RADIUS = 6.5;
 const CARD_W = 1.5;
 const CARD_H = 2.58;
@@ -526,7 +273,6 @@ function updateStartScreenText() {
     document.getElementById('lbl-input').innerText = t.lblInput;
     document.getElementById('enter-btn').innerText = t.enter;
     document.getElementById('restart-btn').innerText = t.restart;
-    // 更新按钮文字
     document.getElementById('btn-hand').innerText = t.btnHand;
     document.getElementById('btn-mouse').innerText = t.btnMouse;
 }
@@ -534,7 +280,6 @@ function updateStartScreenText() {
 function enterExperience() {
     isStarted = true;
     const screen = document.getElementById('start-screen');
-    // 淡出初始界面
     screen.style.opacity = 0;
     screen.style.pointerEvents = 'none'; 
     setTimeout(() => { screen.style.display = 'none'; }, 1500);
@@ -548,11 +293,9 @@ function enterExperience() {
     }
     updateStatusText();
     spawnDeck();
+    handleResize(); 
 }
 
-/**
- * THREE.JS SCENE SETUP
- */
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(BG_COLOR);
 scene.fog = new THREE.FogExp2(BG_COLOR, 0.012);
@@ -564,7 +307,6 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 document.getElementById('canvas-container').appendChild(renderer.domElement);
 
 const texLoader = new THREE.TextureLoader();
-// Global Back Texture (.png)
 const texBackGlobal = texLoader.load('./cards/back.png'); 
 texBackGlobal.anisotropy = renderer.capabilities.getMaxAnisotropy();
 texBackGlobal.center.set(0.5, 0.5);
@@ -575,7 +317,6 @@ const frontLight = new THREE.DirectionalLight(0xffeaac, 0.6);
 frontLight.position.set(0, 2, 5);
 scene.add(frontLight);
 
-// Stars
 const starGeo = new THREE.BufferGeometry();
 const starPos = new Float32Array(2500*3);
 for(let i=0;i<2500;i++) {
@@ -591,9 +332,6 @@ const starMat = new THREE.PointsMaterial({color: 0xcccccc, size: 0.06});
 const starSystem = new THREE.Points(starGeo, starMat);
 scene.add(starSystem);
 
-/**
- * DECK CONSTRUCTION
- */
 const deckGroup = new THREE.Group();
 scene.add(deckGroup);
 let cardObjects = [];
@@ -628,10 +366,8 @@ function createCardMesh(data, index, total) {
     const texFront = texLoader.load(data.url);
     texFront.anisotropy = renderer.capabilities.getMaxAnisotropy();
     texFront.center.set(0.5, 0.5);
-    
     const matBack = new THREE.MeshStandardMaterial({ map: texBackGlobal, ...matBase });
     const matFront = new THREE.MeshStandardMaterial({ map: texFront, ...matBase });
-
     const meshBack = new THREE.Mesh(faceGeo, matBack);
     meshBack.position.z = 0.005; 
     const meshFront = new THREE.Mesh(faceGeo, matFront);
@@ -642,7 +378,6 @@ function createCardMesh(data, index, total) {
     const outlineMesh = new THREE.LineSegments(outlineGeo, outlineMat);
     outlineMesh.position.z = 0.006; outlineMesh.visible = false;
     group.userData.outline = outlineMesh;
-
     group.add(meshBack, meshFront, meshFiller, outlineMesh);
     
     const step = (Math.PI * 2) / total;
@@ -650,7 +385,6 @@ function createCardMesh(data, index, total) {
     group.position.x = RADIUS * Math.sin(theta);
     group.position.z = -RADIUS * Math.cos(theta);
     group.lookAt(0, 0, 0);
-
     group.userData = { id: data.id, rawData: data, state: 'IDLE', theta: theta, isChosen: false };
     return group;
 }
@@ -658,16 +392,8 @@ function createCardMesh(data, index, total) {
 function spawnDeck() {
     if(!isStarted) return;
     deckGroup.clear(); cardObjects = [];
-    
-    // 生成带路径数据
-    deckList = RWS_DATA.map(d => ({
-        ...d,
-        url: `./cards/${d.id}.png`
-    }));
-
-    // --- 关键修正：随机洗牌 ---
-    deckList.sort(() => Math.random() - 0.5);
-    
+    deckList = RWS_DATA.map(d => ({ ...d, url: `./cards/${d.id}.png` }));
+    deckList.sort(() => Math.random() - 0.5); 
     deckList.forEach((item, i) => {
         const card = createCardMesh(item, i, deckList.length);
         deckGroup.add(card);
@@ -676,9 +402,6 @@ function spawnDeck() {
     document.getElementById('loader').style.display = 'none';
 }
 
-/**
- * INTERACTION LOGIC
- */
 let handState = 'OPEN';
 let handX = 0;
 let ringRotation = 0;
@@ -690,22 +413,41 @@ function initMouseListeners() {
         handX = (e.clientX / window.innerWidth) * 2 - 1;
     });
     window.addEventListener('mousedown', (e) => {
-        if(e.button === 0) handState = 'PINCH'; 
-        updateCursorIcon();
+        if(e.button === 0) handleInteractionStart();
     });
-    window.addEventListener('mouseup', () => {
-        handState = 'OPEN';
-        updateCursorIcon();
-    });
+    window.addEventListener('mouseup', handleInteractionEnd);
     window.addEventListener('keydown', (e) => {
-        if(e.code === 'Space') handState = 'FIST'; 
-        updateCursorIcon();
+        if(e.code === 'Space') { handState = 'FIST'; updateCursorIcon(); }
     });
     window.addEventListener('keyup', (e) => {
-        if(e.code === 'Space' && handState === 'FIST') handState = 'PINCH'; 
-        else if (e.code === 'Space') handState = 'OPEN';
-        updateCursorIcon();
+        if(e.code === 'Space') { handState = (activeCard) ? 'PINCH' : 'OPEN'; updateCursorIcon(); }
     });
+    window.addEventListener('touchstart', (e) => {
+        const touch = e.touches[0];
+        handX = (touch.clientX / window.innerWidth) * 2 - 1;
+        handleInteractionStart();
+    }, {passive: false});
+    window.addEventListener('touchmove', (e) => {
+        const touch = e.touches[0];
+        handX = (touch.clientX / window.innerWidth) * 2 - 1;
+    }, {passive: false});
+    window.addEventListener('touchend', handleInteractionEnd);
+}
+
+function handleInteractionStart() {
+    if (activeCard && activeCard.userData.state === 'SELECTED') {
+        handState = 'FIST'; 
+    } else {
+        handState = 'PINCH';
+    }
+    updateCursorIcon();
+}
+
+function handleInteractionEnd() {
+    if (handState !== 'FIST') {
+        handState = 'OPEN';
+    }
+    updateCursorIcon();
 }
 
 function updateCursorIcon() {
@@ -721,7 +463,8 @@ function updateStatusText() {
         return;
     }
     if (activeCard && activeCard.userData.state === 'SELECTED') {
-        el.innerText = controlMode === 'hand' ? t.statusFist : t.statusSpace;
+        const isMobile = window.innerWidth < 768;
+        el.innerText = isMobile ? t.statusTap : (controlMode === 'hand' ? t.statusFist : t.statusSpace);
     } else if (activeCard && activeCard.userData.state === 'REVEALING') {
         el.innerText = t.statusReveal;
     } else {
@@ -735,13 +478,11 @@ function handleInput() {
         animateFinalFormation();
         return;
     }
-
     if (!activeCard && handState === 'OPEN') {
         const deadZone = 0.15;
         if (Math.abs(handX) > deadZone) ringRotation += (handX - Math.sign(handX)*deadZone) * 0.02;
     }
     deckGroup.rotation.y = THREE.MathUtils.lerp(deckGroup.rotation.y, ringRotation, 0.05);
-
     let closestDist = Infinity;
     let newCenterCard = null;
     if (!activeCard) {
@@ -757,16 +498,13 @@ function handleInput() {
             if (card.userData.outline) card.userData.outline.visible = false;
         });
     }
-
     if (newCenterCard) {
         centerCard = newCenterCard;
         if (centerCard.userData.outline) centerCard.userData.outline.visible = true;
     } else {
         centerCard = null;
     }
-
     if (handState === 'PINCH' && centerCard && !activeCard) selectCard(centerCard);
-
     if (activeCard) {
         activeCard.position.lerp(new THREE.Vector3(0, 0, -2.2), 0.1);
         if (activeCard.userData.state === 'SELECTED') {
@@ -821,17 +559,14 @@ function revealCard(card) {
     if (card.userData.state === 'REVEALING') return;
     card.userData.state = 'REVEALING';
     updateStatusText();
-    
+    handState = 'OPEN';
     const isReversed = Math.random() < 0.5;
     card.userData.isReversed = isReversed;
-
     const startQ = card.quaternion.clone();
     const targetEuler = new THREE.Euler(0, Math.PI, isReversed ? Math.PI : 0);
     const targetQ = new THREE.Quaternion().setFromEuler(targetEuler);
-
     const data = card.userData.rawData;
     const name = data[currentLang].name;
-
     let p = 0;
     function animateFlip() {
         p += 0.03; 
@@ -861,38 +596,30 @@ function dissolve(card, isReversed) {
 function startEndRitual() {
     isRitualComplete = true;
     updateStatusText();
-    
     document.getElementById('history-container').style.opacity = 0;
     document.getElementById('hud-center').style.opacity = 0;
-    
     setTimeout(() => {
         document.getElementById('end-ui').style.opacity = 1;
         document.getElementById('end-ui').style.pointerEvents = 'auto';
         document.getElementById('credits').style.opacity = 1;
     }, 3500);
-
     cardObjects.forEach(c => {
         if (!c.userData.isChosen) {
             c.userData.dropSpeed = 0.05 + Math.random() * 0.1;
         }
     });
-
     chosen3DMeshes.forEach((card, index) => {
         card.visible = true;
         scene.attach(card); 
         card.position.set(4 + index*0.5, 3, -4); 
         card.scale.set(0.2, 0.2, 0.2);
-
-        // Position: 2.4 Gap, -6.0 Depth
         card.userData.finalTargetPos = new THREE.Vector3((index - 1) * 2.4, 0, -6.0);
         card.userData.finalTargetScale = 0.8;
         card.userData.animProgress = 0;
         card.userData.animDelay = index * 30; 
     });
-
     const textContainer = document.getElementById('final-text-container');
     const t = TEXTS[currentLang];
-    
     chosen3DMeshes.forEach(card => {
         const div = document.createElement('div');
         div.className = 'final-card-label';
@@ -911,7 +638,6 @@ function animateFinalFormation() {
             c.rotation.x += 0.05;
         }
     });
-
     chosen3DMeshes.forEach(card => {
         if (card.userData.animDelay > 0) {
             card.userData.animDelay--;
@@ -980,6 +706,13 @@ function initCamera() {
     cam.start();
 }
 
+function handleResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    if (window.innerWidth < window.innerHeight) { camera.position.z = 5; } else { camera.position.z = 0; }
+}
+
 function animate() {
     requestAnimationFrame(animate);
     starSystem.rotation.y += 0.0002;
@@ -991,7 +724,7 @@ function animate() {
     renderer.render(scene, camera);
 }
 animate();
-window.onresize = () => { camera.aspect=window.innerWidth/window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth,window.innerHeight); };
+window.addEventListener('resize', handleResize);
 </script>
 </body>
 </html>
