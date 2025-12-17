@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Arcanum: The Final Ritual</title>
+    <title>Arcanum: Final Ritual</title>
     <style>
         /* --- 全局样式 (Global Styles) --- */
         body { 
@@ -440,9 +440,9 @@ const TEXTS = {
         statusReveal: "OBSERVING FATE...",
         statusDone: "RITUAL COMPLETE",
         rev: "Reversed",
-        restart: "RESTART RITUAL"
-        btnHand: "Hand Gesture ✋", // 新增
-        btnMouse: "Mouse 🖱️"       // 新增
+        restart: "RESTART RITUAL",
+        btnHand: "Hand Gesture ✋", 
+        btnMouse: "Mouse 🖱️"       
     },
     zh: {
         subtitle: "虚拟塔罗仪式",
@@ -456,13 +456,13 @@ const TEXTS = {
         statusReveal: "正在观测命运...",
         statusDone: "仪式完成",
         rev: "逆位",
-        restart: "重新开始仪式"
-        btnHand: "手势控制 ✋", // 新增
-        btnMouse: "鼠标控制 🖱️"  // 新增
+        restart: "重新开始仪式",
+        btnHand: "手势控制 ✋", 
+        btnMouse: "鼠标控制 🖱️"  
     }
 };
 
-// 基础数据 (不含URL，URL自动生成)
+// 基础数据 (完整22张)
 const RWS_DATA = [
     { id: 0, en: { name: "The Fool", meaning: "New beginnings, innocence, spontaneity" }, zh: { name: "愚者", meaning: "新的开始，天真，自发性，冒险" } },
     { id: 1, en: { name: "The Magician", meaning: "Manifestation, resourcefulness, power" }, zh: { name: "魔术师", meaning: "显化，资源丰富，力量，创造力" } },
@@ -493,7 +493,7 @@ let controlMode = 'hand';
 let isStarted = false;
 let deckList = [];
 
-// 游戏逻辑参数
+// Game Logic Params
 const MAX_SELECTION = 3; 
 let selectionCount = 0;
 let isRitualComplete = false;
@@ -526,6 +526,9 @@ function updateStartScreenText() {
     document.getElementById('lbl-input').innerText = t.lblInput;
     document.getElementById('enter-btn').innerText = t.enter;
     document.getElementById('restart-btn').innerText = t.restart;
+    // 更新按钮文字
+    document.getElementById('btn-hand').innerText = t.btnHand;
+    document.getElementById('btn-mouse').innerText = t.btnMouse;
 }
 
 function enterExperience() {
@@ -535,10 +538,8 @@ function enterExperience() {
     screen.style.opacity = 0;
     screen.style.pointerEvents = 'none'; 
     setTimeout(() => { screen.style.display = 'none'; }, 1500);
-
     const ui = document.getElementById('ui-layer');
     ui.style.opacity = 1;
-
     if (controlMode === 'hand') {
         document.getElementById('video-feed').style.opacity = 0.3;
         initCamera();
@@ -563,7 +564,7 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 document.getElementById('canvas-container').appendChild(renderer.domElement);
 
 const texLoader = new THREE.TextureLoader();
-// 全局加载背景图 (.png)
+// Global Back Texture (.png)
 const texBackGlobal = texLoader.load('./cards/back.png'); 
 texBackGlobal.anisotropy = renderer.capabilities.getMaxAnisotropy();
 texBackGlobal.center.set(0.5, 0.5);
@@ -574,7 +575,7 @@ const frontLight = new THREE.DirectionalLight(0xffeaac, 0.6);
 frontLight.position.set(0, 2, 5);
 scene.add(frontLight);
 
-// 星空粒子
+// Stars
 const starGeo = new THREE.BufferGeometry();
 const starPos = new Float32Array(2500*3);
 for(let i=0;i<2500;i++) {
@@ -605,7 +606,6 @@ shape.lineTo(-w+r, h); shape.quadraticCurveTo(-w, h, -w, h-r);
 shape.lineTo(-w, -h+r); shape.quadraticCurveTo(-w, -h, -w+r, -h);
 const faceGeo = new THREE.ShapeGeometry(shape);
 
-// 修复 UV
 function fixUVs(geometry) {
     const posAttribute = geometry.attributes.position;
     const uvAttribute = geometry.attributes.uv;
@@ -625,16 +625,13 @@ const outlineMat = new THREE.LineBasicMaterial({ color: GOLD_COLOR, linewidth: 2
 
 function createCardMesh(data, index, total) {
     const group = new THREE.Group();
-    // 自动加载正面图片
     const texFront = texLoader.load(data.url);
     texFront.anisotropy = renderer.capabilities.getMaxAnisotropy();
     texFront.center.set(0.5, 0.5);
     
-    // 材质
     const matBack = new THREE.MeshStandardMaterial({ map: texBackGlobal, ...matBase });
     const matFront = new THREE.MeshStandardMaterial({ map: texFront, ...matBase });
 
-    // 网格构建
     const meshBack = new THREE.Mesh(faceGeo, matBack);
     meshBack.position.z = 0.005; 
     const meshFront = new THREE.Mesh(faceGeo, matFront);
@@ -648,7 +645,6 @@ function createCardMesh(data, index, total) {
 
     group.add(meshBack, meshFront, meshFiller, outlineMesh);
     
-    // 初始环形分布
     const step = (Math.PI * 2) / total;
     const theta = index * step;
     group.position.x = RADIUS * Math.sin(theta);
@@ -663,12 +659,12 @@ function spawnDeck() {
     if(!isStarted) return;
     deckGroup.clear(); cardObjects = [];
     
-    // 生成带路径的数据
+    // 生成带路径数据
     deckList = RWS_DATA.map(d => ({
         ...d,
         url: `./cards/${d.id}.png`
     }));
-    
+
     // --- 关键修正：随机洗牌 ---
     deckList.sort(() => Math.random() - 0.5);
     
@@ -735,7 +731,6 @@ function updateStatusText() {
 
 function handleInput() {
     if (!isStarted) return;
-    
     if (isRitualComplete) {
         animateFinalFormation();
         return;
@@ -863,7 +858,6 @@ function dissolve(card, isReversed) {
     if (selectionCount >= MAX_SELECTION) startEndRitual();
 }
 
-// --- 仪式结束 ---
 function startEndRitual() {
     isRitualComplete = true;
     updateStatusText();
@@ -874,7 +868,7 @@ function startEndRitual() {
     setTimeout(() => {
         document.getElementById('end-ui').style.opacity = 1;
         document.getElementById('end-ui').style.pointerEvents = 'auto';
-        document.getElementById('credits').style.opacity = 1; // Credits 显示
+        document.getElementById('credits').style.opacity = 1;
     }, 3500);
 
     cardObjects.forEach(c => {
@@ -889,7 +883,7 @@ function startEndRitual() {
         card.position.set(4 + index*0.5, 3, -4); 
         card.scale.set(0.2, 0.2, 0.2);
 
-        // Position: Gap 2.4, Depth -6.0
+        // Position: 2.4 Gap, -6.0 Depth
         card.userData.finalTargetPos = new THREE.Vector3((index - 1) * 2.4, 0, -6.0);
         card.userData.finalTargetScale = 0.8;
         card.userData.animProgress = 0;
@@ -1001,4 +995,3 @@ window.onresize = () => { camera.aspect=window.innerWidth/window.innerHeight; ca
 </script>
 </body>
 </html>
-
