@@ -324,15 +324,14 @@
         }
 
         #video-feed { position: absolute; bottom: 10px; right: 10px; width: 100px; opacity: 0; transform: scaleX(-1); pointer-events: none; border: 1px solid #d4af37; transition: opacity 0.5s; }
-        
-        /* 1. 移除 Loading Assets 文字 */
+        /* 移除 loader 文字，且增加 pointer-events 防止遮挡 */
         #loader { 
             position: absolute; 
             top: 50%; 
             left: 50%; 
             transform: translate(-50%,-50%); 
             z-index: 200; 
-            /* 如果需要保留转圈圈可以在这里加 CSS spinner，目前留空 */
+            pointer-events: none;
         }
 
         /* --- 移动端适配 (Responsive Styles) --- */
@@ -534,7 +533,6 @@ let hands;
 let camVideo;
 let isPinching = false;
 let lastPinchTime = 0;
-let dissolveSystems = []; // Store active particle systems
 
 // TEXTURE LOADER
 const textureLoader = new THREE.TextureLoader();
@@ -620,19 +618,20 @@ function init3D() {
     // Lights
     const ambient = new THREE.AmbientLight(0x404040, 1.5);
     scene.add(ambient);
-    const spot = new THREE.SpotLight(0d4af37, 1);
+    // 修复：之前这里有语法错误 0d4af37 -> 0xd4af37
+    const spot = new THREE.SpotLight(0xd4af37, 1);
     spot.position.set(0, 500, 500);
     scene.add(spot);
     
-    // Mysterious Particles (Starfield)
+    // Mysterious Particles (Brightened)
     const geomPart = new THREE.BufferGeometry();
     const posPart = [];
     for(let i=0; i<300; i++) {
         posPart.push((Math.random()-0.5)*2000, (Math.random()-0.5)*2000, (Math.random()-0.5)*2000);
     }
     geomPart.setAttribute('position', new THREE.Float32BufferAttribute(posPart, 3));
-    // ** 2. 背景星光稍微亮一点 (opacity 0.5 -> 0.8) **
-    const matPart = new THREE.PointsMaterial({color: 0xffffff, size: 2, transparent: true, opacity: 0.8});
+    // 增强星光：opacity 0.5 -> 0.8, size 2 -> 3
+    const matPart = new THREE.PointsMaterial({color: 0xffffff, size: 3, transparent: true, opacity: 0.8});
     const particles = new THREE.Points(geomPart, matPart);
     scene.add(particles);
 
@@ -654,7 +653,11 @@ function init3D() {
         const frontMat = new THREE.MeshBasicMaterial({ 
             map: textureLoader.load(frontUrl, () => {
                 loadedTextures++;
-                if(loadedTextures === totalCards) document.getElementById('loader').style.display = 'none';
+                // 确保加载完后隐藏 loader
+                if(loadedTextures === totalCards) {
+                    const l = document.getElementById('loader');
+                    if(l) l.style.display = 'none';
+                }
             }),
             side: THREE.FrontSide
         });
@@ -675,6 +678,9 @@ function init3D() {
         cardObj.add(bMesh);
         
         // **修改点 2：计算半径时，不用缩得太小**
+        // 确保半径足够大，牌之间有间隙
+        // Mobile Portrait: try a fixed reasonable radius
+        // Desktop: wider
         const r = isMobile ? 600 : 800; 
 
         const theta = i * angleStep;
@@ -710,7 +716,7 @@ function init3D() {
 function updateCameraPosition() {
     if (isMobile && window.innerHeight > window.innerWidth) {
         // 竖屏模式：拉近相机，只看局部
-        camera.position.z = 700; 
+        camera.position.z = 700; // 之前可能是 1200+
     } else {
         camera.position.z = 1000;
     }
@@ -845,82 +851,8 @@ function animate() {
                 c.scale.setScalar(1);
             }
         });
-
-        // Update Particles (Dissolve Effect)
-        updateDissolveEffects();
         
         renderer.render(scene, camera);
-    }
-}
-
-// ** 3. 卡牌消散特效逻辑 **
-function createDissolveEffect(pos) {
-    const count = 150; // 粒子数量
-    const geom = new THREE.BufferGeometry();
-    const positions = [];
-    const velocities = [];
-    
-    for(let i=0; i<count; i++) {
-        // Start at card position
-        positions.push(pos.x, pos.y, pos.z);
-        
-        // Random velocity sphere
-        const theta = Math.random() * Math.PI * 2;
-        const phi = Math.acos((Math.random() * 2) - 1);
-        const speed = Math.random() * 3 + 1; // Speed
-        
-        velocities.push(
-            speed * Math.sin(phi) * Math.cos(theta),
-            speed * Math.sin(phi) * Math.sin(theta),
-            speed * Math.cos(phi)
-        );
-    }
-    
-    geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    
-    // "金色粒子细小一点" (Fine Gold Particles)
-    const mat = new THREE.PointsMaterial({
-        color: 0xd4af37, 
-        size: 1.5, // 细小
-        transparent: true, 
-        opacity: 1 
-    });
-    
-    const system = new THREE.Points(geom, mat);
-    scene.add(system);
-    
-    dissolveSystems.push({
-        mesh: system,
-        velocities: velocities,
-        age: 0
-    });
-}
-
-function updateDissolveEffects() {
-    for(let i=dissolveSystems.length-1; i>=0; i--) {
-        const sys = dissolveSystems[i];
-        sys.age++;
-        
-        const positions = sys.mesh.geometry.attributes.position.array;
-        
-        // Update positions based on velocity
-        for(let j=0; j<sys.velocities.length/3; j++) {
-            positions[j*3] += sys.velocities[j*3];
-            positions[j*3+1] += sys.velocities[j*3+1];
-            positions[j*3+2] += sys.velocities[j*3+2];
-        }
-        
-        sys.mesh.geometry.attributes.position.needsUpdate = true;
-        
-        // Fade out
-        sys.mesh.material.opacity -= 0.02;
-        
-        if(sys.mesh.material.opacity <= 0) {
-            scene.remove(sys.mesh);
-            sys.mesh.geometry.dispose();
-            sys.mesh.material.dispose();
-            dissolveSystems.splice(i, 1);
-        }
     }
 }
 
@@ -964,8 +896,12 @@ function drawCard(cardMesh) {
     selectedCards.push({ mesh: cardMesh, reversed: isReversed, data: TAROT_DATA[cardMesh.userData.id] });
     
     // Animation to Screen Corner (History Slot)
+    // We need to map HTML element position to 3D? 
+    // Easier: Fly to front of camera, reveal, then fly to top right or disappear and show UI image.
+    // Let's do: Fly to center -> Flip -> Fly up and vanish -> Show UI
     
     // 1. Move to Center Front
+    // **修改点 3：抽牌时展示位置**
     const centerPos = new THREE.Vector3(0, 0, camera.position.z - 200);
     const targetRot = new THREE.Euler(0, Math.PI, isReversed ? Math.PI : 0); // Front facing camera
     
@@ -983,9 +919,6 @@ function drawCard(cardMesh) {
             setTimeout(() => {
                 addToHistoryUI(selectedCards[index]);
                 
-                // ** Trigger Particle Dissolve Effect **
-                createDissolveEffect(cardMesh.position);
-
                 // Shrink and vanish card
                 new TWEEN.Tween(cardMesh.scale).to({ x:0, y:0, z:0 }, 500).start();
                 
