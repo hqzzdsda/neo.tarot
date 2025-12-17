@@ -383,7 +383,7 @@
         </div>
         
         <div id="credits">
-            Jerry Hu & Gemini 制作<br>huqiuzhi10@gmail.com
+            By: Jerry Hu & Gemini <br>huqiuzhi10@gmail.com
         </div>
 
         <div id="hud-center">
@@ -441,6 +441,8 @@ const TEXTS = {
         statusDone: "RITUAL COMPLETE",
         rev: "Reversed",
         restart: "RESTART RITUAL"
+        btnHand: "Hand Gesture ✋", // 新增
+        btnMouse: "Mouse 🖱️"       // 新增
     },
     zh: {
         subtitle: "虚拟塔罗仪式",
@@ -455,6 +457,8 @@ const TEXTS = {
         statusDone: "仪式完成",
         rev: "逆位",
         restart: "重新开始仪式"
+        btnHand: "手势控制 ✋", // 新增
+        btnMouse: "鼠标控制 🖱️"  // 新增
     }
 };
 
@@ -664,6 +668,9 @@ function spawnDeck() {
         ...d,
         url: `./cards/${d.id}.png`
     }));
+    
+    // --- 关键修正：随机洗牌 ---
+    deckList.sort(() => Math.random() - 0.5);
     
     deckList.forEach((item, i) => {
         const card = createCardMesh(item, i, deckList.length);
@@ -994,3 +1001,4 @@ window.onresize = () => { camera.aspect=window.innerWidth/window.innerHeight; ca
 </script>
 </body>
 </html>
+
