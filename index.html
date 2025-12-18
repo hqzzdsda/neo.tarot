@@ -273,7 +273,7 @@
         /* 最终结果文字容器 */
         #final-text-container {
             position: absolute; 
-            top: 65%; /* PC端默认位置 */
+            top: 65%; /* 稍微上移以适配小屏幕 */
             left: 0; 
             width: 100%;
             text-align: center; 
@@ -376,10 +376,8 @@
             /* 制作人员信息缩小 */
             #credits { text-align: center; right: 0; width: 100%; bottom: 10px; font-size: 8px; }
             
-            /* --- 【修改点1】最终结果文字大幅上移 --- */
-            /* 原来是 top: 60%; 改为 45% 让它提上来 */
-            #final-text-container { top: 45%; gap: 15px; }
-            
+            /* 最终结果文字调整 */
+            #final-text-container { top: 60%; gap: 15px; }
             .final-card-label { width: 100%; max-width: 300px; }
         }
     </style>
@@ -423,7 +421,7 @@
         </div>
         
         <div id="credits">
-            By: Jerry Hu & Gemini <br>huqiuzhi10@gmail.com
+            Jerry Hu & Gemini 制作<br>huqiuzhi10@gmail.com
         </div>
 
         <div id="hud-center">
@@ -988,16 +986,10 @@ function startEndRitual() {
         // 响应式最终位置计算
         // 手机屏幕窄，需要排列更紧凑或者垂直排列，这里做简单缩放适配
         const isPortrait = window.innerHeight > window.innerWidth;
+        const gap = isPortrait ? 1.5 : 2.4;
+        const depth = isPortrait ? -9.0 : -6.0; // 手机上放远一点
         
-        // --- 【修改点2】3D卡牌位置调整 ---
-        // 1. gap: 1.5 -> 1.3 (稍微紧凑一点，防止重叠太多)
-        // 2. depth: -9.0 -> -5.5 (改大数值，让它离相机更近，看起来更大)
-        // 3. heightOffset: 0 -> 1.5 (让卡牌向上飘，不要被文字挡住)
-        const gap = isPortrait ? 1.3 : 2.4; 
-        const depth = isPortrait ? -5.5 : -6.0; 
-        const heightOffset = isPortrait ? 1.5 : 0; 
-        
-        card.userData.finalTargetPos = new THREE.Vector3((index - 1) * gap, heightOffset, depth);
+        card.userData.finalTargetPos = new THREE.Vector3((index - 1) * gap, 0, depth);
         card.userData.finalTargetScale = 0.8;
         card.userData.animProgress = 0;
         card.userData.animDelay = index * 30; 
@@ -1102,7 +1094,7 @@ function updateCameraPos() {
     
     // 关键：竖屏模式下相机后退，以便看到完整的牌阵环
     if (aspect < 1) { // 竖屏
-        camera.position.z = 10; // 距离更远
+        camera.position.z = 1; // 距离
         camera.position.y = 1;
     } else { // 横屏
         camera.position.z = 0;
