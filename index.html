@@ -378,7 +378,7 @@
             
             /* 最终结果文字调整 */
 	  #final-text-container { 
-   	 top: 40%;           /* 调整垂直位置 */
+   	 top: 45%;           /* 调整垂直位置 */
    	 flex-direction: column; /* 强制垂直排列，防止文字挤压 */
    	 align-items: center;    /* 居中对齐 */
     	max-height: 40vh;       /* 限制高度，防止遮挡底部按钮 */
@@ -1001,7 +1001,7 @@ function startEndRitual() {
 
 	// 3. 位置向上：定义一个新的变量 targetY
 	// 如果是竖屏，Y 设为 2.0 (正数向上)；横屏保持 0 (居中)
-	const targetY = isPortrait ? 2.0 : 0;
+	const targetY = isPortrait ? 3.0 : 0;
         
         card.userData.finalTargetPos = new THREE.Vector3((index - 1) * gap, targetY, depth);
         card.userData.finalTargetScale = 0.8;
