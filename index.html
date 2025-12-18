@@ -428,7 +428,7 @@
         </div>
         
         <div id="credits">
-           By: Jerry Hu & Gemini <br>huqiuzhi10@gmail.com
+            By: Jerry Hu & Gemini<br>huqiuzhi10@gmail.com
         </div>
 
         <div id="hud-center">
@@ -556,33 +556,29 @@ const CARD_H = 2.58;
 const CORNER_R = 0.08;
 const GOLD_COLOR = 0xd4af37;
 const BG_COLOR = 0x000000;
-// --- 新增：射线检测变量 ---
+// --- 新增：射线检测核心变量 ---
 const raycaster = new THREE.Raycaster();
-const mouse = new THREE.Vector2();
+const mouseVec = new THREE.Vector2();
 
-// --- 新增：获取点击位置的卡牌函数 ---
+// 获取点击位置的卡牌（穿透检测）
 function getIntersectedCard(clientX, clientY) {
-    // 将屏幕坐标转换为 Three.js 标准设备坐标 (-1 到 +1)
-    mouse.x = (clientX / window.innerWidth) * 2 - 1;
-    mouse.y = -(clientY / window.innerHeight) * 2 + 1;
+    // 归一化坐标 (-1 到 +1)
+    mouseVec.x = (clientX / window.innerWidth) * 2 - 1;
+    mouseVec.y = -(clientY / window.innerHeight) * 2 + 1;
 
-    raycaster.setFromCamera(mouse, camera);
+    raycaster.setFromCamera(mouseVec, camera);
 
-    // 检测射线是否射中了卡牌 (注意：cardObjects 里存的是 Group，需要递归检测 true)
+    // 检测所有卡牌
     const intersects = raycaster.intersectObjects(cardObjects, true);
 
     if (intersects.length > 0) {
-        // 向上查找，直到找到包含 userData 的 Group 对象（因为射线可能射中卡牌的正面Mesh或背面Mesh）
+        // 向上寻找直到找到卡牌的 Group 容器
         let target = intersects[0].object;
         while (target.parent && !target.userData.id && target !== scene) {
             target = target.parent;
         }
-        // 确保是有效的 IDLE 状态卡牌
-        if (target.userData && target.userData.state === 'IDLE' && !target.userData.isChosen) {
-            return target;
-        }
-        // 如果点击的是已经选中的卡牌（用于点击揭示）
-        if (target.userData && target.userData.state === 'SELECTED') {
+        // 判定有效性：必须是 IDLE (在圆环上) 或 SELECTED (已被选中)
+        if (target.userData && (target.userData.state === 'IDLE' || target.userData.state === 'SELECTED') && !target.userData.isChosen) {
             return target;
         }
     }
@@ -786,82 +782,113 @@ let activeCard = null;
 let centerCard = null;
 
 function initMouseListeners() {
-    // 鼠标移动：仅用于控制旋转 (悬停转动体验)
+    let isDragging = false;
+    let startX = 0;
+
+    window.addEventListener('mousedown', (e) => {
+        if (controlMode !== 'mouse') return;
+        startX = e.clientX;
+        isDragging = false;
+    });
+
     window.addEventListener('mousemove', (e) => {
-        // 只有在没选中卡牌时，鼠标位置才控制旋转速度
-        if (!activeCard) {
-            handX = (e.clientX / window.innerWidth) * 2 - 1;
+        if (controlMode !== 'mouse') return;
+        if (e.buttons === 1) { // 只有按住左键才算拖动
+            if (Math.abs(e.clientX - startX) > 5) isDragging = true;
+            if (!activeCard && isDragging) {
+                 handX = (e.clientX / window.innerWidth) * 2 - 1;
+            }
+        } else {
+            // 鼠标悬停时不旋转，防止晕
+            handX = 0;
         }
     });
 
-    // 鼠标点击：直接选中或揭示
-    window.addEventListener('click', (e) => {
+    window.addEventListener('mouseup', (e) => {
         if (controlMode !== 'mouse') return;
-        
-        const hitCard = getIntersectedCard(e.clientX, e.clientY);
-        
-        if (hitCard) {
-            if (!activeCard) {
-                // 没选中时，点击即选中
-                selectCard(hitCard);
-            } else if (activeCard === hitCard) {
-                // 已选中时，再次点击该卡牌即揭示
-                revealCard(activeCard);
+        handX = 0; // 停止旋转
+
+        if (!isDragging) {
+            const hitCard = getIntersectedCard(e.clientX, e.clientY);
+            if (hitCard) {
+                if (!activeCard || activeCard !== hitCard) {
+                    if (activeCard) returnCard(activeCard);
+                    selectCard(hitCard);
+                } else if (activeCard === hitCard) {
+                    revealCard(activeCard);
+                }
+            } else {
+                if (activeCard) returnCard(activeCard);
             }
         }
+        isDragging = false;
     });
 }
-
 function initTouchListeners() {
     const container = document.getElementById('canvas-container');
     let startX = 0;
+    let startY = 0;
     let isDragging = false;
-    let potentialTapCard = null; // 记录手指刚按下时是否点到了卡牌
 
     container.addEventListener('touchstart', (e) => {
         if (controlMode !== 'mouse') return;
         const t = e.touches[0];
         startX = t.clientX;
+        startY = t.clientY;
         isDragging = false;
         
-        // 按下瞬间检测是否点到了卡牌
-        potentialTapCard = getIntersectedCard(t.clientX, t.clientY);
-        
-        // 如果没点到卡牌，就允许旋转
-        if (!potentialTapCard) {
-            handX = (t.clientX / window.innerWidth) * 2 - 1;
-        } else {
-            handX = 0; // 如果点到了卡牌，立刻停止旋转，防止误操作
-        }
+        // 手指按住时，先暂停旋转，防止漂移
+        handX = 0; 
     }, { passive: false });
 
     container.addEventListener('touchmove', (e) => {
         if (controlMode !== 'mouse') return;
         const t = e.touches[0];
         
-        // 如果移动距离超过 10px，视为拖拽/旋转，而不是点击
-        if (Math.abs(t.clientX - startX) > 10) {
+        // 计算移动距离
+        const deltaX = t.clientX - startX;
+        const deltaY = t.clientY - startY;
+
+        // 只有移动超过 10px 才算拖动，否则算点击
+        if (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10) {
             isDragging = true;
-            potentialTapCard = null; // 取消点击判定
             
-            // 旋转逻辑：手指位置决定旋转速度
-            handX = (t.clientX / window.innerWidth) * 2 - 1;
+            // 如果已经选中了卡牌，禁止旋转背景
+            if (!activeCard) {
+                // 根据屏幕宽度比例控制旋转速度
+                handX = (t.clientX / window.innerWidth) * 2 - 1;
+            }
         }
     }, { passive: false });
 
     container.addEventListener('touchend', (e) => {
         if (controlMode !== 'mouse') return;
-        handX = 0; // 手指离开，停止旋转
         
-        // 如果不是拖拽，且刚才点到了卡牌 -> 执行选中或揭示
-        if (!isDragging && potentialTapCard) {
-            if (!activeCard) {
-                selectCard(potentialTapCard);
-            } else if (activeCard === potentialTapCard) {
-                revealCard(activeCard);
+        // 松手立刻刹车，防止漂移
+        handX = 0;
+
+        // 如果不是拖动，那就是点击
+        if (!isDragging) {
+            const t = e.changedTouches[0];
+            const hitCard = getIntersectedCard(t.clientX, t.clientY);
+
+            if (hitCard) {
+                // 情况1：点到了新卡牌 -> 选中它
+                if (!activeCard || activeCard !== hitCard) {
+                    if (activeCard) returnCard(activeCard); // 如果有旧的，先放回去
+                    selectCard(hitCard);
+                } 
+                // 情况2：点到了已经选中的卡牌 -> 翻牌 (相当于长按)
+                else if (activeCard === hitCard) {
+                    revealCard(activeCard);
+                }
+            } else {
+                // 情况3：点到了空白处 -> 把当前卡牌放回去
+                if (activeCard) {
+                    returnCard(activeCard);
+                }
             }
         }
-        potentialTapCard = null;
     });
 }
 function updateCursorIcon() {
@@ -893,23 +920,36 @@ function handleInput() {
         return;
     }
 
-    if (!activeCard && handState === 'OPEN') {
+    // --- 1. 旋转逻辑 ---
+    // 只有在没选中卡牌，且处于 Open 状态(手势) 或 正在拖动(鼠标) 时才旋转
+    if (!activeCard) {
         const deadZone = 0.15;
-        // 移动端灵敏度调整
-        const speed = isMobile ? 0.04 : 0.02;
-        if (Math.abs(handX) > deadZone) ringRotation += (handX - Math.sign(handX)*deadZone) * speed;
+        // 只有手势模式或者鼠标拖动产生速度时才计算
+        if (Math.abs(handX) > deadZone || controlMode === 'mouse') {
+             // 移动端/鼠标模式下速度稍快一点
+             const speed = (controlMode === 'mouse') ? 0.05 : 0.02; 
+             // 只有 handX 有值时才转
+             if (Math.abs(handX) > 0.01) {
+                 ringRotation += (handX * speed);
+             }
+        }
     }
+    // 平滑插值旋转
     deckGroup.rotation.y = THREE.MathUtils.lerp(deckGroup.rotation.y, ringRotation, 0.05);
 
-    let closestDist = Infinity;
+    // --- 2. 自动选中逻辑 (仅限手势模式 Hand Mode) ---
+    // 鼠标/触控模式下，完全由 click/tap 事件控制，这里不再自动选卡
     let newCenterCard = null;
-    if (!activeCard) {
+    
+    // 只有手势模式才计算 centerCard
+    if (controlMode === 'hand' && !activeCard) {
+        let closestDist = Infinity;
         cardObjects.forEach(card => {
             if (card.userData.state === 'IDLE' && !card.userData.isChosen) {
                 const worldPos = new THREE.Vector3();
                 card.getWorldPosition(worldPos);
-                // 移动端判定范围放宽
-                if (worldPos.z < -RADIUS + 2.5 && Math.abs(worldPos.x) < (isMobile ? 2.0 : 1.5)) {
+                // 判定哪个卡在中间
+                if (worldPos.z < -RADIUS + 2.5 && Math.abs(worldPos.x) < 1.5) {
                     const dist = worldPos.distanceTo(camera.position);
                     if (dist < closestDist) { closestDist = dist; newCenterCard = card; }
                 }
@@ -925,14 +965,16 @@ function handleInput() {
         centerCard = null;
     }
 
-    	// 仅在手势模式(hand)下保留“捏合中间卡牌”的逻辑
-	// 鼠标/触控模式下，完全交由上面的 Click/Touch 事件处理
-	if (controlMode === 'hand' && handState === 'PINCH' && centerCard && !activeCard) {
-    	selectCard(centerCard);
-	}
+    // --- 3. 触发选中 (仅限手势模式 Hand Mode) ---
+    // 鼠标模式下 selectCard 由点击事件触发，不在这里触发
+    if (controlMode === 'hand' && handState === 'PINCH' && centerCard && !activeCard) {
+        selectCard(centerCard);
+    }
+
+    // --- 4. 选中后的卡牌动画 ---
     if (activeCard) {
-        // 选中后的卡牌位置
-        const targetZ = isMobile ? -3.5 : -2.2; // 移动端稍微远一点，或者根据相机位置调整
+        // 卡牌飞到面前
+        const targetZ = isMobile ? -3.5 : -2.2;
         activeCard.position.lerp(new THREE.Vector3(0, 0, targetZ), 0.1);
         
         if (activeCard.userData.state === 'SELECTED') {
@@ -940,24 +982,23 @@ function handleInput() {
             activeCard.quaternion.slerp(idleQ, 0.1);
             updateStatusText();
             
-            // 移动端长按模拟 FIST (这里简化逻辑：如果是 Touch 模式，长时间 PINCH 视为确认揭示)
-            // 为了简化，Touch 模式下只要再次点击(PINCH) 或者 手势模式下 FIST 即可
-            if (handState === 'FIST' || (controlMode === 'mouse' && handState === 'PINCH')) {
-                 // 稍微加个延迟防止误触
-                 if(!activeCard.userData.revealTimer) activeCard.userData.revealTimer = Date.now();
-                 if(Date.now() - activeCard.userData.revealTimer > 500) {
-                     revealCard(activeCard);
-                 }
-            } else if (handState === 'OPEN') {
-                activeCard.userData.revealTimer = null;
-                returnCard(activeCard);
+            // 仅限手势模式：捏拳/长捏触发翻牌
+            // 鼠标模式的翻牌由点击事件触发
+            if (controlMode === 'hand') {
+                if (handState === 'FIST') {
+                     if(!activeCard.userData.revealTimer) activeCard.userData.revealTimer = Date.now();
+                     if(Date.now() - activeCard.userData.revealTimer > 500) revealCard(activeCard);
+                } else if (handState === 'OPEN') {
+                    // 手势模式松开手放回卡牌
+                    activeCard.userData.revealTimer = null;
+                    returnCard(activeCard);
+                }
             }
         }
     } else {
         updateStatusText();
     }
 }
-
 function selectCard(card) {
     if (selectionCount >= MAX_SELECTION) return;
     activeCard = card;
