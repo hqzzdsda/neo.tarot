@@ -10,9 +10,10 @@
             margin: 0; 
             overflow: hidden; 
             background-color: #000; 
-            font-family: 'Cinzel', 'Noto Serif SC', serif; 
+            /* 🔴 关键修改：移除 Google Fonts，改用系统安全字体，防止国内访问卡死 */
+            font-family: 'Times New Roman', 'Songti SC', 'SimSun', serif; 
             user-select: none; 
-            -webkit-tap-highlight-color: transparent; /* 移除移动端点击高亮 */
+            -webkit-tap-highlight-color: transparent; 
         }
         #canvas-container { 
             width: 100vw; 
@@ -23,9 +24,6 @@
             z-index: 1; 
         }
         
-        /* 引入字体 */
-        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;800&family=Noto+Serif+SC:wght@300;500&display=swap');
-
         /* --- 初始界面 (Start Screen) --- */
         #start-screen {
             position: absolute; 
@@ -438,7 +436,8 @@
         }
     </style>
     
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- 🔴 切换为 BootCDN (China Friendly) 的 Three.js 镜像，解决国内加载 Three.js 慢或失败的问题 -->
+    <script src="https://cdn.bootcdn.net/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tween.js/18.6.4/tween.umd.js"></script>
@@ -498,7 +497,7 @@
 <script>
 // ================= API 配置区域 =================
 // 🔴 请在这里填入你的 DeepSeek API Key (sk-xxxxxxxx)
-const API_KEY = "sk-92c5cec08baf4941a5ab5a185cd9c22f"; 
+const API_KEY = ""; 
 
 // DeepSeek 官方接口地址
 const API_ENDPOINT = "https://api.deepseek.com/chat/completions"; 
