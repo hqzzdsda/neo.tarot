@@ -776,31 +776,60 @@ function initMouseListeners() {
     });
 }
 
-// 新增：触摸事件监听 (Mobile Support)
+// --- 新版防误触分区触控逻辑 ---
 function initTouchListeners() {
     const container = document.getElementById('canvas-container');
-    
-    container.addEventListener('touchmove', (e) => {
-        e.preventDefault(); // 防止滚动
-        const touch = e.touches[0];
-        // 模拟鼠标X轴移动，控制旋转
-        handX = (touch.clientX / window.innerWidth) * 2 - 1;
-    }, { passive: false });
+    // 记录当前触摸意图：'ROTATE'(旋转) / 'INTERACT'(交互) / 'NONE'(无效)
+    let touchMode = 'NONE'; 
 
     container.addEventListener('touchstart', (e) => {
         const touch = e.touches[0];
-        handX = (touch.clientX / window.innerWidth) * 2 - 1;
-        // 触摸开始视为"捏合"准备，长按或操作由 handleInput 决定
-        handState = 'PINCH'; 
+        const yRatio = touch.clientY / window.innerHeight; // 获取触摸高度比例 (0.0顶 - 1.0底)
+
+        // --- 分区参数设置 ---
+        const rotateZoneTop = 0.5; // 屏幕下方 35% 区域用于旋转
+        const interactZoneTop = 0.2; // 避开顶部 20% 的标题区域
+
+        if (yRatio > rotateZoneTop) {
+            // [底部区域] -> 旋转模式
+            touchMode = 'ROTATE';
+            handState = 'OPEN'; // 强制设为 OPEN，确保滑动时不会误选中卡牌
+            handX = (touch.clientX / window.innerWidth) * 2 - 1; // 更新旋转速度
+        } 
+        else if (yRatio > interactZoneTop && yRatio <= rotateZoneTop) {
+            // [中间区域] -> 交互模式 (卡片位置)
+            touchMode = 'INTERACT';
+            handState = 'PINCH'; // 触发选中/长按逻辑
+            handX = 0; // 强制停止旋转，让卡片停在面前方便长按
+        } 
+        else {
+            // [顶部区域] -> 忽略
+            touchMode = 'NONE';
+            handState = 'OPEN';
+        }
+
         updateCursorIcon();
     }, { passive: false });
 
+    container.addEventListener('touchmove', (e) => {
+        e.preventDefault(); // 阻止浏览器默认滚动
+        
+        // 只有在旋转模式下，左右滑动才生效
+        if (touchMode === 'ROTATE') {
+            const touch = e.touches[0];
+            handX = (touch.clientX / window.innerWidth) * 2 - 1;
+        }
+        // 交互模式下忽略横向移动，保持卡片稳定
+    }, { passive: false });
+
     container.addEventListener('touchend', (e) => {
-        handState = 'OPEN';
+        // 触摸结束，全部复位
+        handState = 'OPEN'; 
+        handX = 0; // 停止旋转（如果你想要松手后有惯性，可以注释掉这行）
+        touchMode = 'NONE';
         updateCursorIcon();
     });
 }
-
 function updateCursorIcon() {
     const icon = handState==='FIST'?'✊':(handState==='PINCH'?'🤏': (isMobile ? '👆' : '🖱️'));
     document.getElementById('gesture-icon').innerText = icon;
