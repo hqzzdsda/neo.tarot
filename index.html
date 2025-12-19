@@ -22,6 +22,19 @@
             left: 0; 
             z-index: 1; 
         }
+
+        /* 默认鼠标是指针 */
+body {
+    cursor: default; 
+}
+
+/* 当鼠标悬停在中轴区域时 (JS控制类名) */
+body.can-grab {
+    cursor: grab;
+}
+body.is-grabbing {
+    cursor: grabbing;
+}
         
         /* --- 初始界面 (Start Screen) --- */
         #start-screen {
@@ -344,12 +357,26 @@
             transform: translateX(-50%);
             text-align: center; 
             color: #d4af37; 
-            pointer-events: none;
-            width: 100%; 
-            transition: opacity 1s;
+        /* ✅ 关键修改：允许点击 */
+            pointer-events: auto; 
+            cursor: pointer;
+            width: 120px; /* 限制宽度，形成按钮感 */
+            padding: 20px;
+            border-radius: 20px;
+            background: rgba(0, 0, 0, 0.2); /* 轻微背景 */
+            transition: all 0.2s;
+            z-index: 60; /* 确保层级够高 */
         }
+
+        /* 按下时的反馈 */
+        #hud-center:active {
+        transform: translateX(-50%) scale(0.95);
+        background: rgba(212, 175, 55, 0.2);
+        }
+
         #gesture-icon { font-size: 32px; display: block; margin-bottom: 10px; opacity: 0.9; text-shadow: 0 0 15px #d4af37;}
         #status-text { font-size: 11px; letter-spacing: 4px; text-transform: uppercase; font-weight: 600; opacity: 0.8; }
+
 
         /* 最终结果文字容器 */
         #final-text-container {
@@ -930,20 +957,40 @@ let ringRotation = 0;
 let activeCard = null;
 let centerCard = null;
 
+// --- 修改后：鼠标逻辑 (仅中间可点) ---
 function initMouseListeners() {
+    // 1. 鼠标移动：控制旋转 X 轴数值
     window.addEventListener('mousemove', (e) => {
+        // 计算归一化坐标 (-1 到 1)
         handX = (e.clientX / window.innerWidth) * 2 - 1;
     });
+
+    // 2. 鼠标按下：只有在中间区域点击才生效
     window.addEventListener('mousedown', (e) => {
-        if(e.button === 0) handState = 'PINCH'; 
+        // 只响应左键
+        if(e.button !== 0) return;
+
+        // 🛑 核心逻辑：判断鼠标位置
+        // 0.2 大约是屏幕中间 20% 的宽度，对应中轴卡的位置
+        // 同时必须满足：不在惯性运动中
+        const isHoveringCenter = Math.abs(handX) < 0.2; 
+
+        if (isHoveringCenter && !isInertia) {
+            handState = 'PINCH'; // 抓取
+        } else {
+            // 如果点在旁边，什么都不做，或者你可以选择强制停止旋转
+            // 这里我们按需求：其他地方不生效
+        }
         updateCursorIcon();
     });
+
+    // 3. 鼠标松开
     window.addEventListener('mouseup', () => {
-        handState = 'OPEN';
+        handState = 'OPEN'; // 松开
         updateCursorIcon();
-        // 👉 新增：鼠标松手，立刻归位
-        snapToGrid();
     });
+
+    // 4. 键盘辅助 (空格键) - 保持不变
     window.addEventListener('keydown', (e) => {
         if(e.code === 'Space') handState = 'FIST'; 
         updateCursorIcon();
@@ -970,8 +1017,8 @@ function initTouchListeners() {
         touchStartX = x;
         
         // 视觉反馈
-        handState = 'PINCH'; 
-        updateCursorIcon();
+        // handState = 'PINCH'; 
+        // updateCursorIcon();
     }, { passive: false });
 
     // 2. 触摸移动：1:1 跟手计算
@@ -987,7 +1034,7 @@ function initTouchListeners() {
 
         // 计算瞬时速度 (用于松手后的惯性)
         // 这里的 0.5 是灵敏度修正，太快可以调小
-        touchVelocity = deltaX * 0.005; 
+        touchVelocity = deltaX * 0.001; 
 
         // 直接修改旋转角度，实现 1:1 跟手
         // 这里的 3.0 是把屏幕像素映射到弧度的系数
@@ -1002,7 +1049,7 @@ function initTouchListeners() {
     // 3. 触摸结束：判断是"慢拨"还是"快甩"
     container.addEventListener('touchend', (e) => {
         isDragging = false;
-        handState = 'OPEN';
+        // handState = 'OPEN';
         updateCursorIcon();
 
         // 阈值判断：如果速度极小，视为"慢拨" -> 直接吸附
@@ -1013,6 +1060,35 @@ function initTouchListeners() {
             snapToGrid(); // 慢速松手，直接归位
         }
     });
+}
+
+
+// --- 修改后：底部按钮监听 (仅触控模式生效) ---
+function initHUDListeners() {
+    const hud = document.getElementById('hud-center');
+    
+    // 通用处理函数
+    const onPress = (e) => {
+        // 🛑 核心修改：如果是电脑(非移动端)，忽略这个按钮，强制用户去点卡片
+        if (!isMobile) return;
+
+        e.preventDefault(); 
+        e.stopPropagation();
+        handState = 'PINCH';
+        updateCursorIcon();
+    };
+
+    const onRelease = (e) => {
+        if (!isMobile) return;
+        handState = 'OPEN';
+        updateCursorIcon();
+    };
+
+    // 绑定事件
+    hud.addEventListener('touchstart', onPress, {passive:false});
+    hud.addEventListener('touchend', onRelease, {passive:false});
+    hud.addEventListener('mousedown', onPress); // 这里的 mousedown 会被上面的 !isMobile 拦截
+    hud.addEventListener('mouseup', onRelease);
 }
 
 function updateCursorIcon() {
@@ -1137,12 +1213,28 @@ function handleInput() {
     const newAxisCard = getAxisCard();
     centerCard = newAxisCard; 
 
+    // --- 新增：鼠标光标反馈 ---
+    if (!isMobile && !isDragging) {
+        // 如果手势在中间 (DeadZone)，且有卡，且没在惯性飞
+        if (Math.abs(handX) < 0.2 && centerCard && !isInertia) {
+            document.body.classList.add('can-grab');
+        } else {
+            document.body.classList.remove('can-grab');
+        }
+        
+        if (handState === 'PINCH') {
+             document.body.classList.add('is-grabbing');
+        } else {
+             document.body.classList.remove('is-grabbing');
+        }
+    }
+
     // ==========================================
     // 3. 交互触发 (Interaction)
     // ==========================================
 
     // 只有当系统锁定了 centerCard，且用户做出捏合手势，且手里没卡时触发
-    if (handState === 'PINCH' && centerCard && !activeCard) {
+    if (handState === 'PINCH' && centerCard && !activeCard && !isDragging && !isInertia) {
         selectCard(centerCard);
     }
 
