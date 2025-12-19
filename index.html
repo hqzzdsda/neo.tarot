@@ -745,6 +745,9 @@ let isInertia = false;    // 是否处于惯性滑行状态
 const FRICTION = 0.95;    // 摩擦力 (0.9-0.99，越大滑得越远)
 const GRAB_THRESHOLD = 0.005; // 抓取速度阈值 (越小越严格，必须停得更稳才能抓)
 let interactionLock = false; // 交互锁：防止长按连发
+let holdTimer = null;    // 存长按的闹钟ID
+let hasRevealed = false; // 标记：这次长按是否已经成功揭示了
+
 
 // Game Logic Params
 const MAX_SELECTION = 3; 
@@ -1065,50 +1068,74 @@ function initTouchListeners() {
 }
 
 
-// --- 修改后：修复轻点与连发问题的按钮监听 ---
+// --- 修改后：基于 setTimeout 的稳健长按逻辑 ---
 function initHUDListeners() {
     const hud = document.getElementById('hud-center');
     
-    // 按下按钮
+    // 1. 按下 (Start)
     const onPress = (e) => {
         if (!isMobile) return; 
         e.preventDefault(); 
         e.stopPropagation();
 
-        // 1. 如果还在惯性滑行且太快，忽略
+        // 速度太快不许按
         if (isInertia && Math.abs(touchVelocity) > GRAB_THRESHOLD) return;
+        
+        // 还没选完3张才能按
+        if (selectionCount >= MAX_SELECTION) return;
 
-        // 2. 如果已经锁住了（说明刚才刚揭示了一张牌，手还没松），忽略
-        if (interactionLock) return;
-
-        // 3. 正常逻辑
+        // --- 动作开始 ---
         isInertia = false;
         touchVelocity = 0;
         isDragging = false;
         snapToGrid(); 
-
+        
         handState = 'PINCH';
         updateCursorIcon();
-
-        // 🔥 关键修复：不要等待 animate 循环，立刻抓取！
-        // 这样哪怕你只按了 1 毫秒，牌也会被标记为选中
+        
+        // 如果中间有卡，且没在拿别的卡
         if (centerCard && !activeCard) {
+            // 立刻把卡抓过来
             selectCard(centerCard);
+            
+            // 重置揭示标记
+            hasRevealed = false;
+
+            // ⏰ 开启闹钟：800毫秒后自动翻牌
+            holdTimer = setTimeout(() => {
+                // 时间到！执行揭示
+                if (activeCard) {
+                    revealCard(activeCard);
+                    hasRevealed = true; // 标记已成功，松手时别把它弹回去了
+                    
+                    // 手机震动反馈 (如果有)
+                    if (navigator.vibrate) navigator.vibrate(50);
+                }
+            }, 800); // 你可以调整这个 800，越小越灵敏
         }
     };
 
-    // 松开按钮
+    // 2. 松开 (End)
     const onRelease = (e) => {
         if (!isMobile) return;
         e.preventDefault();
-        
-        // 视觉状态恢复
+
+        // 🛑 立刻取消闹钟！
+        // 如果还没到 800ms，这行代码会扼杀 revealCard 的执行
+        if (holdTimer) {
+            clearTimeout(holdTimer);
+            holdTimer = null;
+        }
+
         handState = 'OPEN';
         updateCursorIcon();
 
-        // 🔥 关键修复：只有松手时，才解开“连发锁”
-        // 这意味着如果你长按不放，锁一直存在，不会选第二张
-        interactionLock = false;
+        // 逻辑分支：
+        // 如果刚才闹钟没响 (hasRevealed == false)，说明是短按 -> 弹回去
+        // 如果闹钟已经响过了 (hasRevealed == true)，说明牌已经翻了 -> 啥也不用做
+        if (activeCard && !hasRevealed) {
+            returnCard(activeCard);
+        }
     };
 
     hud.addEventListener('touchstart', onPress, {passive:false});
@@ -1182,7 +1209,7 @@ function handleInput() {
     }
 
     // ==========================================
-    // 1. 物理引擎 (没抓牌时才运行)
+    // 1. 物理引擎 (没抓牌时运行)
     // ==========================================
     if (!activeCard) {
         if (isInertia) {
@@ -1194,20 +1221,20 @@ function handleInput() {
                 snapToGrid();
             }
         }
-
-        // 鼠标/手势兼容
-        if (!isDragging && !isInertia && handState === 'OPEN') {
-            const deadZone = 0.15;
-            const speed = isMobile ? 0.015 : 0.02;
-            if (Math.abs(handX) > deadZone) {
-                 ringRotation += (handX - Math.sign(handX)*deadZone) * speed;
-                 isHandRotating = true;
-            } else if (isHandRotating) {
-                 snapToGrid();
-                 isHandRotating = false;
-            }
-        }
         
+        if (!isDragging && !isInertia && handState === 'OPEN') {
+             // ... PC鼠标/手势兼容代码保留 ...
+             const deadZone = 0.15;
+             const speed = isMobile ? 0.015 : 0.02;
+             if (Math.abs(handX) > deadZone) {
+                  ringRotation += (handX - Math.sign(handX)*deadZone) * speed;
+                  isHandRotating = true;
+             } else if (isHandRotating) {
+                  snapToGrid();
+                  isHandRotating = false;
+             }
+        }
+
         if (isDragging) {
             deckGroup.rotation.y = ringRotation;
         } else {
@@ -1216,12 +1243,12 @@ function handleInput() {
     }
 
     // ==========================================
-    // 2. 中轴判定
+    // 2. 中轴计算
     // ==========================================
     const newAxisCard = getAxisCard();
     centerCard = newAxisCard; 
     
-    // 鼠标光标反馈
+    // PC端鼠标反馈
     if (!isMobile && !isDragging) {
         if (Math.abs(handX) < 0.2 && centerCard && !isInertia) document.body.classList.add('can-grab');
         else document.body.classList.remove('can-grab');
@@ -1229,52 +1256,45 @@ function handleInput() {
         else document.body.classList.remove('is-grabbing');
     }
 
-    // ❌ 删除：原来的自动抓取逻辑 
-    // if (handState === 'PINCH' && centerCard ...) <-- 这段删掉或注释掉
-    // 因为现在抓取动作完全由 onPress 事件接管了，循环里不需要再判断抓取
-    // 仅保留鼠标模式的抓取（如果你需要鼠标点屏幕抓取的话）：
+    // PC端鼠标抓取保留 (如果你还需要的话)
     if (!isMobile && handState === 'PINCH' && centerCard && !activeCard && !isDragging && !isInertia) {
         selectCard(centerCard);
     }
 
     // ==========================================
-    // 3. 选中后的逻辑 (核心修复)
+    // 3. 选中后的动画 (极简版)
     // ==========================================
     
     if (activeCard) {
+        // 无论长按短按，第一件事都是：飞到眼前
         const targetZ = isMobile ? -3.5 : -2.2;
         activeCard.position.lerp(new THREE.Vector3(0, 0, targetZ), 0.1);
         
+        // 扶正角度
         if (activeCard.userData.state === 'SELECTED') {
             const idleQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, 0));
             activeCard.quaternion.slerp(idleQ, 0.1);
             
-            updateStatusText();
-
-            // 计时逻辑
-            if (handState === 'PINCH' || handState === 'FIST') {
-                 if(!activeCard.userData.revealTimer) activeCard.userData.revealTimer = Date.now();
-                 
-                 // 长按超过 500ms
-                 if(Date.now() - activeCard.userData.revealTimer > 500) {
-                     revealCard(activeCard);
-                     
-                     // 🔥 关键：揭示的一瞬间，锁死交互！
-                     // 只有当你松开手(触发 onRelease)，interactionLock 才会变回 false
-                     // 这样就算你一直按着，也不会去抓下一张卡
-                     interactionLock = true;
+            // 🛑 注意：这里删掉了所有的时间判断逻辑
+            // 所有的 revealCard / returnCard 现在都由 initHUDListeners 里的 setTimeout 控制
+            // handleInput 只负责渲染位置
+            
+            // PC端的逻辑需要保留一下 (因为PC端没有 touch listeners)
+            if (!isMobile) {
+                 if (handState === 'PINCH' || handState === 'FIST') {
+                     if(!activeCard.userData.revealTimer) activeCard.userData.revealTimer = Date.now();
+                     if(Date.now() - activeCard.userData.revealTimer > 500) revealCard(activeCard);
+                 } else if (handState === 'OPEN') {
+                    activeCard.userData.revealTimer = null;
+                    returnCard(activeCard);
                  }
-            } 
-            // 松手回弹
-            else if (handState === 'OPEN') {
-                activeCard.userData.revealTimer = null;
-                returnCard(activeCard);
             }
         }
     } else {
         updateStatusText();
     }
 }
+
 // --- 新增：强制归位逻辑 ---
 function snapToGrid() {
     // 1. 算出每张牌的间隔角度 (弧度)
