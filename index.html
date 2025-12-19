@@ -1532,37 +1532,49 @@ function animate() {
 animate();
 
 
-// --- 新增：光影视觉确认逻辑 ---
+// --- 修改后：视觉聚光灯逻辑 (霸道模式) ---
 function updateCardVisuals() {
-    // 定义两种状态的颜色
-    const colorActive = new THREE.Color(0xffffff); // 纯白 (原亮度)
-    const colorDimmed = new THREE.Color(0x505050); // 深灰 (变暗)
+    // 定义颜色
+    const colorActive = new THREE.Color(0xffffff); // 亮 (聚光)
+    const colorDimmed = new THREE.Color(0x333333); // 暗 (背景压暗，比之前更暗一点以突出主角)
+    
+    // 发光强度
+    const emissiveActive = new THREE.Color(0x222222);
+    const emissiveDimmed = new THREE.Color(0x000000);
 
     cardObjects.forEach(card => {
-        // 已经飞走的卡不管
+        // 1. 已经飞走/消失的卡，直接跳过，不处理
         if (card.userData.isChosen) return;
 
-        // 判定目标颜色：
-        // 1. 是中轴卡 (centerCard) -> 亮
-        // 2. 已经被选中拿在手里 (SELECTED/REVEALING) -> 亮
-        // 3. 其他所有卡 -> 暗
-        let target = colorDimmed;
-        
-        // 注意：这里加了 card === activeCard 判断，防止选中后变暗
-        if (card === centerCard || card.userData.state !== 'IDLE') {
-            target = colorActive;
-        }
+        let isTarget = false;
 
-        // 遍历卡牌的各个部分 (正面、背面、边缘) 进行变色
+        // --- 核心判断逻辑 ---
+        if (activeCard) {
+            // 场景 A：玩家手里拿着卡 (Active 存在)
+            // 只有手里这张是亮的目标，其他全暗
+            if (card === activeCard) {
+                isTarget = true;
+            }
+        } else {
+            // 场景 B：玩家没拿卡 (浏览模式)
+            // 只有正对中轴的那张是亮的目标
+            if (card === centerCard) {
+                isTarget = true;
+            }
+        }
+        // --------------------
+
+        const targetColor = isTarget ? colorActive : colorDimmed;
+        const targetEmissive = isTarget ? emissiveActive : emissiveDimmed;
+
+        // 执行颜色渐变
         card.children.forEach(mesh => {
             if (mesh.isMesh && mesh.material) {
-                // 使用 lerp 进行颜色过渡，0.1 是渐变速度，会有呼吸感
-                mesh.material.color.lerp(target, 0.1);
+                // 颜色过渡
+                mesh.material.color.lerp(targetColor, 0.1);
                 
-                // 额外加分项：如果是中轴卡，让材质发一点点微光 (Emissive)
-                // 这样看起来更神圣
+                // 自发光过渡 (增加神圣感)
                 if (mesh.material.emissive) {
-                    const targetEmissive = (card === centerCard) ? new THREE.Color(0x222222) : new THREE.Color(0x000000);
                     mesh.material.emissive.lerp(targetEmissive, 0.1);
                 }
             }
