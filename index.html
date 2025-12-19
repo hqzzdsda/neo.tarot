@@ -933,6 +933,8 @@ function initMouseListeners() {
     window.addEventListener('mouseup', () => {
         handState = 'OPEN';
         updateCursorIcon();
+        // 👉 新增：鼠标松手，立刻归位
+        snapToGrid();
     });
     window.addEventListener('keydown', (e) => {
         if(e.code === 'Space') handState = 'FIST'; 
@@ -966,6 +968,8 @@ function initTouchListeners() {
     container.addEventListener('touchend', (e) => {
         handState = 'OPEN';
         updateCursorIcon();
+        // 👉 新增：手指离开屏幕，立刻归位
+        snapToGrid();
     });
 }
 
@@ -1025,6 +1029,8 @@ function getAxisCard() {
     return closestCard;
 }
 
+let isHandRotating = false; // 新增标记
+
 // --- 修改后的输入处理与状态更新 ---
 function handleInput() {
     if (!isStarted) return;
@@ -1033,12 +1039,27 @@ function handleInput() {
         return;
     }
 
-    // 1. 转动逻辑
+    // 1. 转动逻辑 (修改版)
+    const deadZone = 0.15;
+    
+    // 如果没有选中卡片，且手是张开的
     if (!activeCard && handState === 'OPEN') {
-        const deadZone = 0.15;
         const speed = isMobile ? 0.015 : 0.02;
-        if (Math.abs(handX) > deadZone) ringRotation += (handX - Math.sign(handX)*deadZone) * speed;
+
+        // 情况 A：手在死区外 -> 正在转动
+        if (Math.abs(handX) > deadZone) {
+            ringRotation += (handX - Math.sign(handX)*deadZone) * speed;
+            isHandRotating = true; // 标记：我正在操作
+        } 
+        // 情况 B：手回到了死区（中间），且刚才是在操作状态 -> 触发归位
+        else if (isHandRotating) {
+            snapToGrid(); // 👉 只有在“停止操作”的瞬间触发一次
+            isHandRotating = false; // 重置标记，防止连续触发
+        }
     }
+    
+    // 注意：因为 snapToGrid 里直接修改了 deckGroup.rotation.y
+    // 所以这里的 lerp 会在瞬移后继续保持同步
     deckGroup.rotation.y = THREE.MathUtils.lerp(deckGroup.rotation.y, ringRotation, 0.05);
 
     // 2. 核心：依然计算中轴卡，但是"默默地算"
@@ -1080,6 +1101,30 @@ function handleInput() {
         updateStatusText();
     }
 }
+
+// --- 新增：强制归位逻辑 ---
+function snapToGrid() {
+    // 1. 算出每张牌的间隔角度 (弧度)
+    // 22张牌，一圈是 2PI
+    const step = (Math.PI * 2) / deckList.length;
+
+    // 2. 算出当前旋转角度对应的是“第几个卡位”
+    // 使用 Math.round 进行四舍五入，这就是“找最近”的核心
+    const closestIndex = Math.round(ringRotation / step);
+
+    // 3. 算出那个卡位的标准角度
+    const targetRotation = closestIndex * step;
+
+    // 4. 强制赋值（瞬移，不做动画，确立规则）
+    ringRotation = targetRotation;
+    deckGroup.rotation.y = targetRotation;
+    
+    // 5. 再次强制更新一下中轴卡，确保数据同步
+    centerCard = getAxisCard();
+    // 调试日志（可选）
+    // console.log("Snap triggered! Target:", targetRotation);
+}
+
 function selectCard(card) {
     if (selectionCount >= MAX_SELECTION) return;
     activeCard = card;
