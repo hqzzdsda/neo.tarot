@@ -743,6 +743,7 @@ let touchVelocity = 0;    // 当前滑动速度
 let isDragging = false;   // 是否手指按在屏幕上
 let isInertia = false;    // 是否处于惯性滑行状态
 const FRICTION = 0.95;    // 摩擦力 (0.9-0.99，越大滑得越远)
+const GRAB_THRESHOLD = 0.005; // 抓取速度阈值 (越小越严格，必须停得更稳才能抓)
 
 // Game Logic Params
 const MAX_SELECTION = 3; 
@@ -957,40 +958,40 @@ let ringRotation = 0;
 let activeCard = null;
 let centerCard = null;
 
-// --- 修改后：鼠标逻辑 (仅中间可点) ---
+// --- 修改后：带速度限制的鼠标监听 ---
 function initMouseListeners() {
-    // 1. 鼠标移动：控制旋转 X 轴数值
     window.addEventListener('mousemove', (e) => {
-        // 计算归一化坐标 (-1 到 1)
         handX = (e.clientX / window.innerWidth) * 2 - 1;
     });
 
-    // 2. 鼠标按下：只有在中间区域点击才生效
     window.addEventListener('mousedown', (e) => {
-        // 只响应左键
         if(e.button !== 0) return;
 
-        // 🛑 核心逻辑：判断鼠标位置
-        // 0.2 大约是屏幕中间 20% 的宽度，对应中轴卡的位置
-        // 同时必须满足：不在惯性运动中
+        // 基础位置检查
         const isHoveringCenter = Math.abs(handX) < 0.2; 
+        
+        // 🛑 核心修改：速度检测
+        // 如果正在惯性滑行，且速度太快 -> 禁止点击
+        const isTooFast = isInertia && Math.abs(touchVelocity) > GRAB_THRESHOLD;
 
-        if (isHoveringCenter && !isInertia) {
-            handState = 'PINCH'; // 抓取
-        } else {
-            // 如果点在旁边，什么都不做，或者你可以选择强制停止旋转
-            // 这里我们按需求：其他地方不生效
-        }
+        if (isHoveringCenter && !isTooFast) {
+            // 只有这里才允许刹车
+            if (isInertia) {
+                isInertia = false;
+                touchVelocity = 0;
+                snapToGrid();
+            }
+            handState = 'PINCH'; 
+        } 
         updateCursorIcon();
     });
 
-    // 3. 鼠标松开
     window.addEventListener('mouseup', () => {
-        handState = 'OPEN'; // 松开
+        handState = 'OPEN'; 
         updateCursorIcon();
     });
 
-    // 4. 键盘辅助 (空格键) - 保持不变
+    // 键盘逻辑保持不变
     window.addEventListener('keydown', (e) => {
         if(e.code === 'Space') handState = 'FIST'; 
         updateCursorIcon();
@@ -1063,33 +1064,56 @@ function initTouchListeners() {
 }
 
 
-// --- 修改后：底部按钮监听 (仅触控模式生效) ---
+// --- 修改后：带速度限制的按钮监听 ---
 function initHUDListeners() {
     const hud = document.getElementById('hud-center');
     
-    // 通用处理函数
+    // 按下按钮
     const onPress = (e) => {
-        // 🛑 核心修改：如果是电脑(非移动端)，忽略这个按钮，强制用户去点卡片
-        if (!isMobile) return;
+        if (!isMobile) return; 
 
         e.preventDefault(); 
         e.stopPropagation();
+
+        // 🛑 核心修改：速度检测
+        // 如果处于惯性状态，且速度超过阈值 -> 拒绝抓取，直接返回
+        if (isInertia && Math.abs(touchVelocity) > GRAB_THRESHOLD) {
+            console.log("太快了，抓不住！");
+            return; 
+        }
+
+        // --- 只有速度够慢，才执行下面的“刹车+抓取” ---
+        
+        // 1. 强制刹车 (因为已经很慢了，所以刹车不会突兀)
+        isInertia = false;
+        touchVelocity = 0;
+        isDragging = false;
+        
+        // 2. 归位
+        snapToGrid(); 
+
+        // 3. 抓取
         handState = 'PINCH';
         updateCursorIcon();
     };
 
+    // 松开按钮
     const onRelease = (e) => {
         if (!isMobile) return;
-        handState = 'OPEN';
-        updateCursorIcon();
+        e.preventDefault();
+        
+        // 只有当状态确实是抓取时，才重置 (防止刚才因为太快没抓取，松手却重置了别的)
+        if (handState === 'PINCH') {
+            handState = 'OPEN';
+            updateCursorIcon();
+        }
     };
 
-    // 绑定事件
     hud.addEventListener('touchstart', onPress, {passive:false});
     hud.addEventListener('touchend', onRelease, {passive:false});
-    hud.addEventListener('mousedown', onPress); // 这里的 mousedown 会被上面的 !isMobile 拦截
-    hud.addEventListener('mouseup', onRelease);
+    hud.addEventListener('touchcancel', onRelease, {passive:false});
 }
+
 
 function updateCursorIcon() {
     const icon = handState==='FIST'?'✊':(handState==='PINCH'?'🤏': (isMobile ? '👆' : '🖱️'));
