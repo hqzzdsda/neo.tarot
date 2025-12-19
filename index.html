@@ -744,6 +744,7 @@ let isDragging = false;   // 是否手指按在屏幕上
 let isInertia = false;    // 是否处于惯性滑行状态
 const FRICTION = 0.95;    // 摩擦力 (0.9-0.99，越大滑得越远)
 const GRAB_THRESHOLD = 0.005; // 抓取速度阈值 (越小越严格，必须停得更稳才能抓)
+let interactionLock = false; // 交互锁：防止长按连发
 
 // Game Logic Params
 const MAX_SELECTION = 3; 
@@ -1064,37 +1065,36 @@ function initTouchListeners() {
 }
 
 
-// --- 修改后：带速度限制的按钮监听 ---
+// --- 修改后：修复轻点与连发问题的按钮监听 ---
 function initHUDListeners() {
     const hud = document.getElementById('hud-center');
     
     // 按下按钮
     const onPress = (e) => {
         if (!isMobile) return; 
-
         e.preventDefault(); 
         e.stopPropagation();
 
-        // 🛑 核心修改：速度检测
-        // 如果处于惯性状态，且速度超过阈值 -> 拒绝抓取，直接返回
-        if (isInertia && Math.abs(touchVelocity) > GRAB_THRESHOLD) {
-            console.log("太快了，抓不住！");
-            return; 
-        }
+        // 1. 如果还在惯性滑行且太快，忽略
+        if (isInertia && Math.abs(touchVelocity) > GRAB_THRESHOLD) return;
 
-        // --- 只有速度够慢，才执行下面的“刹车+抓取” ---
-        
-        // 1. 强制刹车 (因为已经很慢了，所以刹车不会突兀)
+        // 2. 如果已经锁住了（说明刚才刚揭示了一张牌，手还没松），忽略
+        if (interactionLock) return;
+
+        // 3. 正常逻辑
         isInertia = false;
         touchVelocity = 0;
         isDragging = false;
-        
-        // 2. 归位
         snapToGrid(); 
 
-        // 3. 抓取
         handState = 'PINCH';
         updateCursorIcon();
+
+        // 🔥 关键修复：不要等待 animate 循环，立刻抓取！
+        // 这样哪怕你只按了 1 毫秒，牌也会被标记为选中
+        if (centerCard && !activeCard) {
+            selectCard(centerCard);
+        }
     };
 
     // 松开按钮
@@ -1102,18 +1102,19 @@ function initHUDListeners() {
         if (!isMobile) return;
         e.preventDefault();
         
-        // 只有当状态确实是抓取时，才重置 (防止刚才因为太快没抓取，松手却重置了别的)
-        if (handState === 'PINCH') {
-            handState = 'OPEN';
-            updateCursorIcon();
-        }
+        // 视觉状态恢复
+        handState = 'OPEN';
+        updateCursorIcon();
+
+        // 🔥 关键修复：只有松手时，才解开“连发锁”
+        // 这意味着如果你长按不放，锁一直存在，不会选第二张
+        interactionLock = false;
     };
 
     hud.addEventListener('touchstart', onPress, {passive:false});
     hud.addEventListener('touchend', onRelease, {passive:false});
     hud.addEventListener('touchcancel', onRelease, {passive:false});
 }
-
 
 function updateCursorIcon() {
     const icon = handState==='FIST'?'✊':(handState==='PINCH'?'🤏': (isMobile ? '👆' : '🖱️'));
@@ -1174,7 +1175,6 @@ function getAxisCard() {
 let isHandRotating = false; // 新增标记
 
 function handleInput() {
-    // 0. 基础状态检查
     if (!isStarted) return;
     if (isRitualComplete) {
         animateFinalFormation();
@@ -1182,120 +1182,96 @@ function handleInput() {
     }
 
     // ==========================================
-    // 1. 物理引擎与转动控制 (Physics & Rotation)
+    // 1. 物理引擎 (没抓牌时才运行)
     // ==========================================
+    if (!activeCard) {
+        if (isInertia) {
+            ringRotation += touchVelocity * 15;
+            touchVelocity *= FRICTION;
+            if (Math.abs(touchVelocity) < 0.0005) {
+                isInertia = false;
+                touchVelocity = 0;
+                snapToGrid();
+            }
+        }
 
-    // A. 惯性滑行逻辑 (当手指离开屏幕，但还有速度时)
-    if (isInertia) {
-        // 持续应用速度 (15 是惯性增幅，模仿轮盘转动感)
-        ringRotation += touchVelocity * 15;
+        // 鼠标/手势兼容
+        if (!isDragging && !isInertia && handState === 'OPEN') {
+            const deadZone = 0.15;
+            const speed = isMobile ? 0.015 : 0.02;
+            if (Math.abs(handX) > deadZone) {
+                 ringRotation += (handX - Math.sign(handX)*deadZone) * speed;
+                 isHandRotating = true;
+            } else if (isHandRotating) {
+                 snapToGrid();
+                 isHandRotating = false;
+            }
+        }
         
-        // 摩擦力衰减 (速度越来越慢)
-        touchVelocity *= FRICTION;
-        
-        // 当速度极小 (几乎停下) 时，强制停车并吸附
-        if (Math.abs(touchVelocity) < 0.0005) {
-            isInertia = false;
-            touchVelocity = 0;
-            snapToGrid(); // 没力气了，自动归位到最近的卡
+        if (isDragging) {
+            deckGroup.rotation.y = ringRotation;
+        } else {
+            deckGroup.rotation.y = THREE.MathUtils.lerp(deckGroup.rotation.y, ringRotation, 0.1);
         }
     }
 
-    // B. 鼠标/摄像头手势输入 (仅在非触摸拖拽 且 非惯性时生效)
-    // 这是为了兼容 PC 鼠标悬停和摄像头挥手
-    if (!isDragging && !isInertia && !activeCard && handState === 'OPEN') {
-        const deadZone = 0.15; // 手势死区
-        const speed = isMobile ? 0.015 : 0.02;
-
-        // 情况1：手在死区外 -> 驱动旋转
-        if (Math.abs(handX) > deadZone) {
-             ringRotation += (handX - Math.sign(handX)*deadZone) * speed;
-             isHandRotating = true; // 标记：正在由手势控制
-        } 
-        // 情况2：手回到死区(中间) -> 认为操作结束，触发归位
-        else if (isHandRotating) {
-             snapToGrid();
-             isHandRotating = false;
-        }
-    }
-    
-    // C. 将计算出的角度应用到模型
-    if (isDragging) {
-        // 🖐️ 触控拖拽时：1:1 绝对跟手，直接赋值，消除延迟
-        deckGroup.rotation.y = ringRotation;
-    } else {
-        // 🪄 其他情况(惯性/吸附/鼠标)：使用 Lerp 插值，让动画丝滑
-        // 0.1 的系数让回弹既有弹性又不拖泥带水
-        deckGroup.rotation.y = THREE.MathUtils.lerp(deckGroup.rotation.y, ringRotation, 0.1);
-    }
-
     // ==========================================
-    // 2. 中轴判定 (Axis Calculation)
+    // 2. 中轴判定
     // ==========================================
-
-    // 每一帧都计算谁是中轴卡 (用于逻辑锁定，不涉及UI显示)
     const newAxisCard = getAxisCard();
     centerCard = newAxisCard; 
-
-    // --- 新增：鼠标光标反馈 ---
+    
+    // 鼠标光标反馈
     if (!isMobile && !isDragging) {
-        // 如果手势在中间 (DeadZone)，且有卡，且没在惯性飞
-        if (Math.abs(handX) < 0.2 && centerCard && !isInertia) {
-            document.body.classList.add('can-grab');
-        } else {
-            document.body.classList.remove('can-grab');
-        }
-        
-        if (handState === 'PINCH') {
-             document.body.classList.add('is-grabbing');
-        } else {
-             document.body.classList.remove('is-grabbing');
-        }
+        if (Math.abs(handX) < 0.2 && centerCard && !isInertia) document.body.classList.add('can-grab');
+        else document.body.classList.remove('can-grab');
+        if (handState === 'PINCH') document.body.classList.add('is-grabbing');
+        else document.body.classList.remove('is-grabbing');
     }
 
-    // ==========================================
-    // 3. 交互触发 (Interaction)
-    // ==========================================
-
-    // 只有当系统锁定了 centerCard，且用户做出捏合手势，且手里没卡时触发
-    if (handState === 'PINCH' && centerCard && !activeCard && !isDragging && !isInertia) {
+    // ❌ 删除：原来的自动抓取逻辑 
+    // if (handState === 'PINCH' && centerCard ...) <-- 这段删掉或注释掉
+    // 因为现在抓取动作完全由 onPress 事件接管了，循环里不需要再判断抓取
+    // 仅保留鼠标模式的抓取（如果你需要鼠标点屏幕抓取的话）：
+    if (!isMobile && handState === 'PINCH' && centerCard && !activeCard && !isDragging && !isInertia) {
         selectCard(centerCard);
     }
 
     // ==========================================
-    // 4. 选中卡牌后的行为 (Active Card Logic)
+    // 3. 选中后的逻辑 (核心修复)
     // ==========================================
     
     if (activeCard) {
-        // A. 飞向屏幕前方
         const targetZ = isMobile ? -3.5 : -2.2;
         activeCard.position.lerp(new THREE.Vector3(0, 0, targetZ), 0.1);
         
         if (activeCard.userData.state === 'SELECTED') {
-            // B. 慢慢把牌扶正 (取消原本的圆环角度)
             const idleQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, 0));
             activeCard.quaternion.slerp(idleQ, 0.1);
             
-            updateStatusText(); // 更新底部文字提示
-            
-            // C. 揭示判定 (握拳 / 鼠标长按)
-            if (handState === 'FIST' || (controlMode === 'mouse' && handState === 'PINCH')) {
-                 // 开始计时
+            updateStatusText();
+
+            // 计时逻辑
+            if (handState === 'PINCH' || handState === 'FIST') {
                  if(!activeCard.userData.revealTimer) activeCard.userData.revealTimer = Date.now();
                  
-                 // 长按超过 500ms 则翻开
+                 // 长按超过 500ms
                  if(Date.now() - activeCard.userData.revealTimer > 500) {
                      revealCard(activeCard);
+                     
+                     // 🔥 关键：揭示的一瞬间，锁死交互！
+                     // 只有当你松开手(触发 onRelease)，interactionLock 才会变回 false
+                     // 这样就算你一直按着，也不会去抓下一张卡
+                     interactionLock = true;
                  }
             } 
-            // D. 放回判定 (松开手 / 松开鼠标)
+            // 松手回弹
             else if (handState === 'OPEN') {
                 activeCard.userData.revealTimer = null;
                 returnCard(activeCard);
             }
         }
     } else {
-        // 没选中卡时，更新常规状态文字
         updateStatusText();
     }
 }
