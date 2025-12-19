@@ -1124,6 +1124,7 @@ function snapToGrid() {
     // console.log("Snap triggered! Target:", targetRotation);
 }
 
+
 function selectCard(card) {
     if (selectionCount >= MAX_SELECTION) return;
     activeCard = card;
@@ -1160,6 +1161,8 @@ function updateReturningCards() {
         }
     });
 }
+
+
 
 function revealCard(card) {
     if (card.userData.state === 'REVEALING') return;
@@ -1521,10 +1524,51 @@ function animate() {
         handleInput(); 
         updateReturningCards(); 
         updateParticles();
+        // 👉 新增：在这里调用视觉刷新
+        updateCardVisuals();
     }
     renderer.render(scene, camera);
 }
 animate();
+
+
+// --- 新增：光影视觉确认逻辑 ---
+function updateCardVisuals() {
+    // 定义两种状态的颜色
+    const colorActive = new THREE.Color(0xffffff); // 纯白 (原亮度)
+    const colorDimmed = new THREE.Color(0x505050); // 深灰 (变暗)
+
+    cardObjects.forEach(card => {
+        // 已经飞走的卡不管
+        if (card.userData.isChosen) return;
+
+        // 判定目标颜色：
+        // 1. 是中轴卡 (centerCard) -> 亮
+        // 2. 已经被选中拿在手里 (SELECTED/REVEALING) -> 亮
+        // 3. 其他所有卡 -> 暗
+        let target = colorDimmed;
+        
+        // 注意：这里加了 card === activeCard 判断，防止选中后变暗
+        if (card === centerCard || card.userData.state !== 'IDLE') {
+            target = colorActive;
+        }
+
+        // 遍历卡牌的各个部分 (正面、背面、边缘) 进行变色
+        card.children.forEach(mesh => {
+            if (mesh.isMesh && mesh.material) {
+                // 使用 lerp 进行颜色过渡，0.1 是渐变速度，会有呼吸感
+                mesh.material.color.lerp(target, 0.1);
+                
+                // 额外加分项：如果是中轴卡，让材质发一点点微光 (Emissive)
+                // 这样看起来更神圣
+                if (mesh.material.emissive) {
+                    const targetEmissive = (card === centerCard) ? new THREE.Color(0x222222) : new THREE.Color(0x000000);
+                    mesh.material.emissive.lerp(targetEmissive, 0.1);
+                }
+            }
+        });
+    });
+}
 
 window.onresize = updateCameraPos;
 </script>
