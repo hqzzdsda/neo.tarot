@@ -1068,80 +1068,49 @@ function initTouchListeners() {
 }
 
 
-// --- 修改后：基于 setTimeout 的稳健长按逻辑 ---
+// --- 修改后：回归本质的按钮监听 ---
 function initHUDListeners() {
     const hud = document.getElementById('hud-center');
     
-    // 1. 按下 (Start)
+    // 按下 = 告诉系统“我现在是捏合状态”
     const onPress = (e) => {
         if (!isMobile) return; 
         e.preventDefault(); 
         e.stopPropagation();
 
-        // 速度太快不许按
+        // 1. 速度检查：太快了不许按
         if (isInertia && Math.abs(touchVelocity) > GRAB_THRESHOLD) return;
         
-        // 还没选完3张才能按
+        // 2. 数量检查：选够了不许按
         if (selectionCount >= MAX_SELECTION) return;
 
-        // --- 动作开始 ---
+        // 3. 动作：强制停车，状态设为 PINCH
         isInertia = false;
         touchVelocity = 0;
         isDragging = false;
         snapToGrid(); 
         
-        handState = 'PINCH';
+        handState = 'PINCH'; // <--- 关键：只改变状态，剩下的交给主循环
         updateCursorIcon();
-        
-        // 如果中间有卡，且没在拿别的卡
-        if (centerCard && !activeCard) {
-            // 立刻把卡抓过来
-            selectCard(centerCard);
-            
-            // 重置揭示标记
-            hasRevealed = false;
-
-            // ⏰ 开启闹钟：800毫秒后自动翻牌
-            holdTimer = setTimeout(() => {
-                // 时间到！执行揭示
-                if (activeCard) {
-                    revealCard(activeCard);
-                    hasRevealed = true; // 标记已成功，松手时别把它弹回去了
-                    
-                    // 手机震动反馈 (如果有)
-                    if (navigator.vibrate) navigator.vibrate(50);
-                }
-            }, 800); // 你可以调整这个 800，越小越灵敏
-        }
     };
 
-    // 2. 松开 (End)
+    // 松开 = 告诉系统“我现在松手了”
     const onRelease = (e) => {
         if (!isMobile) return;
         e.preventDefault();
 
-        // 🛑 立刻取消闹钟！
-        // 如果还没到 800ms，这行代码会扼杀 revealCard 的执行
-        if (holdTimer) {
-            clearTimeout(holdTimer);
-            holdTimer = null;
-        }
-
-        handState = 'OPEN';
+        handState = 'OPEN'; // <--- 关键：状态复位
         updateCursorIcon();
 
-        // 逻辑分支：
-        // 如果刚才闹钟没响 (hasRevealed == false)，说明是短按 -> 弹回去
-        // 如果闹钟已经响过了 (hasRevealed == true)，说明牌已经翻了 -> 啥也不用做
-        if (activeCard && !hasRevealed) {
-            returnCard(activeCard);
-        }
+        // 解开连发锁，准备下一次操作
+        interactionLock = false; 
     };
 
     hud.addEventListener('touchstart', onPress, {passive:false});
     hud.addEventListener('touchend', onRelease, {passive:false});
     hud.addEventListener('touchcancel', onRelease, {passive:false});
 }
+
 
 function updateCursorIcon() {
     const icon = handState==='FIST'?'✊':(handState==='PINCH'?'🤏': (isMobile ? '👆' : '🖱️'));
@@ -1222,8 +1191,8 @@ function handleInput() {
             }
         }
         
+        // PC鼠标/手势兼容
         if (!isDragging && !isInertia && handState === 'OPEN') {
-             // ... PC鼠标/手势兼容代码保留 ...
              const deadZone = 0.15;
              const speed = isMobile ? 0.015 : 0.02;
              if (Math.abs(handX) > deadZone) {
@@ -1243,12 +1212,12 @@ function handleInput() {
     }
 
     // ==========================================
-    // 2. 中轴计算
+    // 2. 中轴计算 & 自动抓取逻辑
     // ==========================================
     const newAxisCard = getAxisCard();
     centerCard = newAxisCard; 
-    
-    // PC端鼠标反馈
+
+    // PC鼠标样式反馈
     if (!isMobile && !isDragging) {
         if (Math.abs(handX) < 0.2 && centerCard && !isInertia) document.body.classList.add('can-grab');
         else document.body.classList.remove('can-grab');
@@ -1256,38 +1225,49 @@ function handleInput() {
         else document.body.classList.remove('is-grabbing');
     }
 
-    // PC端鼠标抓取保留 (如果你还需要的话)
-    if (!isMobile && handState === 'PINCH' && centerCard && !activeCard && !isDragging && !isInertia) {
-        selectCard(centerCard);
+    // 🛑 核心抓取逻辑 (回归经典) 🛑
+    // 只要 handState 是 PINCH (不管是按钮触发的，还是鼠标触发的)
+    // 并且没有锁 (interactionLock == false)
+    if (handState === 'PINCH' && centerCard && !activeCard && !interactionLock) {
+        // 双重保险：如果是惯性太快，这里也不抓 (防止PC端Bug)
+        if (!isInertia) {
+            selectCard(centerCard);
+        }
     }
 
     // ==========================================
-    // 3. 选中后的动画 (极简版)
+    // 3. 选中后的动画与计时
     // ==========================================
     
     if (activeCard) {
-        // 无论长按短按，第一件事都是：飞到眼前
+        // 飞到眼前
         const targetZ = isMobile ? -3.5 : -2.2;
         activeCard.position.lerp(new THREE.Vector3(0, 0, targetZ), 0.1);
         
-        // 扶正角度
         if (activeCard.userData.state === 'SELECTED') {
             const idleQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, 0));
             activeCard.quaternion.slerp(idleQ, 0.1);
             
-            // 🛑 注意：这里删掉了所有的时间判断逻辑
-            // 所有的 revealCard / returnCard 现在都由 initHUDListeners 里的 setTimeout 控制
-            // handleInput 只负责渲染位置
+            updateStatusText();
+
+            // --- 计时判定逻辑 ---
             
-            // PC端的逻辑需要保留一下 (因为PC端没有 touch listeners)
-            if (!isMobile) {
-                 if (handState === 'PINCH' || handState === 'FIST') {
-                     if(!activeCard.userData.revealTimer) activeCard.userData.revealTimer = Date.now();
-                     if(Date.now() - activeCard.userData.revealTimer > 500) revealCard(activeCard);
-                 } else if (handState === 'OPEN') {
-                    activeCard.userData.revealTimer = null;
-                    returnCard(activeCard);
+            // 情况A：还按着 (PINCH) -> 计时
+            if (handState === 'PINCH' || handState === 'FIST') {
+                 if(!activeCard.userData.revealTimer) activeCard.userData.revealTimer = Date.now();
+                 
+                 // 长按超过 500ms -> 翻开
+                 if(Date.now() - activeCard.userData.revealTimer > 500) {
+                     revealCard(activeCard);
+                     
+                     // 🔥 上锁！防止还没松手就把下一张吸过来
+                     interactionLock = true;
                  }
+            } 
+            // 情况B：松手了 (OPEN) -> 还没翻开 -> 弹回去
+            else if (handState === 'OPEN') {
+                activeCard.userData.revealTimer = null;
+                returnCard(activeCard);
             }
         }
     } else {
