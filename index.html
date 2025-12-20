@@ -1437,7 +1437,7 @@ function updateReturningCards() {
                     0,
                     -RADIUS * Math.cos(card.userData.theta)
                 );
-                card.rotation.set(0, Math.PI, 0); // 确保朝向正确
+                card.lookAt(0, 0, 0); // 确保朝向正确
                 
                 // 2. 标记状态已完成
                 card.userData.state = 'IDLE';
@@ -1458,31 +1458,54 @@ function updateReturningCards() {
 
 
 
+// --- 修改后：配合冻结和冷却的翻牌逻辑 ---
 function revealCard(card) {
+    // 1. 防重复触发
     if (card.userData.state === 'REVEALING') return;
-    card.userData.state = 'REVEALING';
-    updateStatusText();
     
+    // 2. 🚨 关键修改：改变状态
+    // 只要设为 REVEALING，handleInput 里的自动扶正逻辑就会停止工作
+    // 这样 animateFlip 才能独占控制权，平滑地翻转卡片
+    card.userData.state = 'REVEALING';
+    
+    updateStatusText(); // 更新底部文字为 "OBSERVING..."
+    
+    // 3. 决定正逆位 (随机)
     const isReversed = Math.random() < 0.5;
     card.userData.isReversed = isReversed;
 
+    // 4. 计算翻转的目标角度
     const startQ = card.quaternion.clone();
     const targetEuler = new THREE.Euler(0, Math.PI, isReversed ? Math.PI : 0);
     const targetQ = new THREE.Quaternion().setFromEuler(targetEuler);
 
+    // 5. 获取卡名 (用于显示)
     const data = card.userData.rawData;
     const name = data[currentLang].name;
 
+    // 6. 执行翻转动画
     let p = 0;
     function animateFlip() {
-        p += 0.03; 
+        p += 0.03; // 翻转速度
+        
+        // 插值旋转
         card.quaternion.slerpQuaternions(startQ, targetQ, p);
+        
         if (p < 1) {
             requestAnimationFrame(animateFlip);
         } else {
+            // 动画结束，强制修正角度
             card.rotation.set(0, Math.PI, isReversed ? Math.PI : 0);
+            
+            // 显示卡牌名字
             document.getElementById('status-text').innerText = name.toUpperCase();
-            setTimeout(() => { dissolve(card, isReversed); }, 2000);
+            
+            // 7. ⏳ 停留 2秒 让用户看清牌面，然后执行溶解
+            // 注意：这里调用的是 Step 9 修改过的 dissolve
+            // dissolve 内部会处理 isCoolingDown 和 activeCard = null
+            setTimeout(() => { 
+                dissolve(card, isReversed); 
+            }, 2000);
         }
     }
     animateFlip();
