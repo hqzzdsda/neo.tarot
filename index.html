@@ -684,11 +684,11 @@ const TEXTS = {
         lblLang: "语言设置",
         lblInput: "操控方式",
         enter: "进入虚空",
-        statusWave: "挥手转动牌阵 · 捏合手指选中",
-        statusMouse: "移动鼠标转动 · 按住左键抓取",
-        statusTouch: "左右轻点转动 · 长按抓取/揭示",
-        statusFist: "握拳揭示命运",
-        statusSpace: "按空格 / 长按揭示",
+        statusWave: "挥手转动牌阵 · 捏合手指选中 · 握拳揭示",
+        statusMouse: "移动鼠标转动 · 按住左键抓取 · 长按揭示",
+        statusTouch: "左右滑动转动 · 下拉抓取/揭示",
+        statusFist: "握拳揭示",
+        statusSpace: "长按揭示",
         statusReveal: "正在观测命运...",
         statusDone: "仪式完成",
         rev: "逆位",
@@ -1840,16 +1840,18 @@ function updateCameraPos() {
 function animate() {
     requestAnimationFrame(animate);
     starSystem.rotation.y += 0.0002;
+    
     if (isStarted) {
         handleInput(); 
-        updateReturningCards(); 
         updateParticles();
-        // 👉 新增：在这里调用视觉刷新
         updateCardVisuals();
+        
+        // 👉 新增：每一帧都检查 UI 是否应该显示
+        updateUIVisibility();
     }
+    
     renderer.render(scene, camera);
 }
-animate();
 
 
 // --- 修改后：视觉聚光灯逻辑 (霸道模式) ---
@@ -1900,6 +1902,34 @@ function updateCardVisuals() {
             }
         });
     });
+}
+
+// --- 新增：UI 显隐状态管理 ---
+function updateUIVisibility() {
+    const axis = document.getElementById('axis-markers');
+    const hud = document.getElementById('hud-center');
+    
+    // 判定条件：什么时候应该“清场”？
+    // 1. 仪式彻底结束了 (isRitualComplete) -> 必须隐藏
+    // 2. 手里有卡 (activeCard) -> 无论是被选中、正在翻、还是正在弹回，都隐藏，避免干扰
+    // 3. 正在冷却 (isCoolingDown) -> 隐藏，让画面过渡更干净
+    const shouldHide = isRitualComplete || activeCard !== null || isCoolingDown;
+
+    if (shouldHide) {
+        // 隐藏状态
+        axis.style.opacity = 0;
+        hud.style.opacity = 0;
+        
+        // 关键：隐藏时禁止点击，防止误触看不到的按钮
+        hud.style.pointerEvents = 'none'; 
+    } else {
+        // 显示状态
+        axis.style.opacity = 0.4; // 中轴线默认是半透明的 (0.4)
+        hud.style.opacity = 1;    // 底部图标是完全不透明的 (1.0)
+        
+        // 逻辑恢复：只有移动端才允许点击 HUD，电脑端不允许
+        hud.style.pointerEvents = isMobile ? 'auto' : 'none'; 
+    }
 }
 
 window.onresize = updateCameraPos;
