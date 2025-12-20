@@ -239,7 +239,6 @@ body.is-grabbing {
     z-index: 5; 
     pointer-events: none; /* 绝对穿透 */
     opacity: 0.4; /* 低对比度，似有若无 */
-    transition: opacity 0.6s ease-out; /* ✅ 关键：慢一点的淡出，不抢戏 */
 }
 
 /* 上指针 (Top Pointer) */
@@ -362,8 +361,6 @@ body.is-grabbing {
             width: 100%;
             background: transparent;
             border-radius: 0;
-            opacity: 1; /* 默认不透明 */
-            transition: opacity 0.6s ease-out; /* ✅ 关键：慢一点的淡出 */
         }
 
         /* 按下时的反馈 */
@@ -544,12 +541,6 @@ body.is-grabbing {
             /* 解说文字在手机上小一点 */
             #oracle-overlay { font-size: 14px; width: 90%; }
         }
-        /* 2. 定义“隐身”状态 */
-        /* !important 确保覆盖原有的 opacity 设置 */
-        .ui-faded-out {
-        opacity: 0 !important;
-        pointer-events: none !important; /* 隐藏时绝对不可点击 */
-        }
     </style>
     
     <script src="https://cdn.bootcdn.net/ajax/libs/three.js/r128/three.min.js"></script>
@@ -676,9 +667,9 @@ const TEXTS = {
         lblLang: "Language",
         lblInput: "Input Method",
         enter: "ENTER VOID",
-        statusWave: "Wave to Turn · Pinch Center Card",
-        statusMouse: "Move to Turn · Hold to Grab",
-        statusTouch: "Tap left or right to Turn · Hold to Grab",
+        statusWave: "Wave to Turn · Pinch Center Card · Clench to Reveal",
+        statusMouse: "Move to Turn · Hold to Grab · Long Press to Reveal",
+        statusTouch: "Swipe to Turn · Pull Down to Grab / Reveal",
         statusFist: "FIST TO REVEAL",
         statusSpace: "SPACE / HOLD TO REVEAL",
         statusReveal: "OBSERVING FATE...",
@@ -696,8 +687,8 @@ const TEXTS = {
         statusWave: "挥手转动牌阵 · 捏合手指选中 · 握拳揭示",
         statusMouse: "移动鼠标转动 · 按住左键抓取 · 长按揭示",
         statusTouch: "左右滑动转动 · 下拉抓取/揭示",
-        statusFist: "握拳揭示",
-        statusSpace: "长按揭示",
+        statusFist: "握拳揭示命运",
+        statusSpace: "按空格 / 长按揭示",
         statusReveal: "正在观测命运...",
         statusDone: "仪式完成",
         rev: "逆位",
@@ -824,6 +815,8 @@ function enterExperience() {
     updateCameraPos(); // 确保相机位置正确
     updateStatusText();
     spawnDeck();
+    // [新增] 进入时显示指引
+    toggleGuides(true);
 }
 
 /**
@@ -1127,6 +1120,22 @@ function updatePullingVisuals(card, progress) {
     card.userData.isManualDragging = true;
 }
 
+// --- 新增：UI 显隐控制函数 ---
+function toggleGuides(show) {
+    const axis = document.getElementById('axis-markers');
+    const hud = document.getElementById('hud-center');
+    
+    // 中轴线平时是半透明(0.4)，隐藏时是0
+    axis.style.transition = 'opacity 0.5s';
+    axis.style.opacity = show ? '0.4' : '0';
+    
+    // HUD平时是1，隐藏时是0
+    hud.style.transition = 'opacity 0.5s';
+    hud.style.opacity = show ? '1' : '0';
+    
+    // 隐藏时禁用点击，防止误触
+    hud.style.pointerEvents = show ? 'auto' : 'none';
+}
 
 // --- 修改后：回归本质的按钮监听 ---
 function initHUDListeners() {
@@ -1395,6 +1404,8 @@ function snapToGrid() {
 
 function selectCard(card) {
     if (selectionCount >= MAX_SELECTION) return;
+    // [新增] 一旦选中，立即隐藏指引层
+    toggleGuides(false);
     activeCard = card;
     card.userData.state = 'SELECTED';
     card.userData.revealTimer = Date.now(); // 初始化计时器
@@ -1448,6 +1459,9 @@ function updateReturningCards() {
                     // 冷却结束，才允许系统去选别的卡，或者允许用户转动
                     activeCard = null;
                     isCoolingDown = false;
+                    // [新增] 只有当仪式还没彻底结束时，才恢复指引显示
+                    if (!isRitualComplete && selectionCount < MAX_SELECTION) {
+                    toggleGuides(true);}
                 }, COOLDOWN_TIME);
             }
         }
@@ -1849,18 +1863,16 @@ function updateCameraPos() {
 function animate() {
     requestAnimationFrame(animate);
     starSystem.rotation.y += 0.0002;
-    
     if (isStarted) {
         handleInput(); 
+        updateReturningCards(); 
         updateParticles();
+        // 👉 新增：在这里调用视觉刷新
         updateCardVisuals();
-        
-        // 👉 新增：每一帧都检查 UI 是否应该显示
-        updateUIVisibility();
     }
-    
     renderer.render(scene, camera);
 }
+animate();
 
 
 // --- 修改后：视觉聚光灯逻辑 (霸道模式) ---
@@ -1913,28 +1925,6 @@ function updateCardVisuals() {
     });
 }
 
-// --- 修改后：基于 CSS 类的 UI 状态管理 ---
-// --- Step 8.x: 中轴与提示图标的显隐管理 ---
-function updateUIVisibility() {
-    const axis = document.getElementById('axis-markers');
-    const hud = document.getElementById('hud-center');
-    
-    // 🔍 判定逻辑：
-    // 只要有任何“动作”发生，或者处于“冷却”中，或者“结束”了
-    // 辅助元素就应该退场
-    const shouldHide = activeCard !== null || isCoolingDown || isRitualComplete;
-
-    if (shouldHide) {
-        // 进入“隐身”状态
-        axis.classList.add('ui-faded-out');
-        hud.classList.add('ui-faded-out');
-    } else {
-        // 恢复“可见”状态
-        // 只有当：没选卡 + 没冷却 + 没结束 时，才会显示
-        axis.classList.remove('ui-faded-out');
-        hud.classList.remove('ui-faded-out');
-    }
-}
 window.onresize = updateCameraPos;
 </script>
 </body>
