@@ -1007,125 +1007,85 @@ function initMouseListeners() {
     });
 }
 
-// --- 修改后：手势分流逻辑 (横滑旋转 / 下拉抽卡) ---
 function initTouchListeners() {
     const container = document.getElementById('canvas-container');
     
     // 1. 触摸开始
     container.addEventListener('touchstart', (e) => {
+        // 🛑 如果是摄像头手势模式，禁用触控逻辑，防止打架
+        if (controlMode === 'hand') return;
+
         const touch = e.touches[0];
-        
-        // 重置物理状态
         isDragging = true;
         isInertia = false; 
         touchVelocity = 0; 
-        
-        // 记录起始点
         touchStartX = touch.clientX;
         lastTouchX = touch.clientX;
-        
-        // 记录 Y 轴 (用于下拉)
         touchStartY = touch.clientY;
-        
-        // 重置方向锁
         dragDirection = null; 
         pullProgress = 0;
-
-        // 如果这时候已经有选中的卡（但还没翻开），允许用户再次拖动它
-        // 或者如果没选卡，准备把中轴卡吸过来
     }, { passive: false });
 
     // 2. 触摸移动
     container.addEventListener('touchmove', (e) => {
+        if (controlMode === 'hand') return; // 🛑 禁用
         e.preventDefault(); 
         if (!isDragging) return;
 
         const touch = e.touches[0];
-        const dx = touch.clientX - touchStartX; // X轴总位移
-        const dy = touch.clientY - touchStartY; // Y轴总位移 (向下为正)
+        const dx = touch.clientX - touchStartX;
+        const dy = touch.clientY - touchStartY;
         
-        // --- A. 还没决定方向时，进行判断 ---
+        // --- A. 方向判断 ---
         if (!dragDirection) {
-            // 设置一个死区 (10px)，防抖动
             if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
-                // 如果横向移动更多 -> 旋转模式
                 if (Math.abs(dx) > Math.abs(dy)) {
                     dragDirection = 'X';
                 } 
-                // 如果纵向移动更多，且是向下滑 -> 抽卡模式
-                // 只有在中轴有卡，且没选满3张时才允许
                 else if (dy > 0 && centerCard && selectionCount < MAX_SELECTION) {
                     dragDirection = 'Y';
-                    
-                    // 🔒 既然决定下拉，立刻强制刹车、归位、选中
                     isInertia = false;
                     touchVelocity = 0;
                     snapToGrid(); 
-                    
-                    // 把中轴卡标记为 Active，准备跟着手指动
-                    if (!activeCard) {
-                        selectCard(centerCard);
-                    }
+                    if (!activeCard) selectCard(centerCard);
                 }
             }
         }
 
         // --- B. 执行逻辑 ---
-        
         if (dragDirection === 'X') {
-            // === 旋转逻辑 ===
             const currentX = touch.clientX;
             const deltaX = currentX - lastTouchX;
             lastTouchX = currentX;
-            
             touchVelocity = deltaX * 0.005; 
             ringRotation += touchVelocity * 3.0;
             deckGroup.rotation.y = ringRotation;
         } 
         else if (dragDirection === 'Y') {
-            // === 下拉逻辑 ===
-            // 计算下拉进度：把像素映射到 0~1
-            // 比如拉动 150px 就算满
             let progress = dy / PULL_THRESHOLD;
-            
-            // 限制范围 0 ~ 1.2 (允许稍微拉过头一点点，有弹性)
             progress = Math.min(Math.max(progress, 0), 1.2);
             pullProgress = progress;
-            
-            // 视觉反馈：手动更新 activeCard 位置，让它跟手
-            if (activeCard) {
-                updatePullingVisuals(activeCard, progress);
-            }
+            if (activeCard) updatePullingVisuals(activeCard, progress);
         }
-        
     }, { passive: false });
 
     // 3. 触摸结束
     container.addEventListener('touchend', (e) => {
+        if (controlMode === 'hand') return; // 🛑 禁用
         isDragging = false;
         
         if (dragDirection === 'X') {
-            // 旋转结束 -> 惯性
-            if (Math.abs(touchVelocity) > 0.002) {
-                isInertia = true;
-            } else {
-                snapToGrid(); 
-            }
+            if (Math.abs(touchVelocity) > 0.002) isInertia = true;
+            else snapToGrid(); 
         } 
         else if (dragDirection === 'Y') {
-            // 下拉结束 -> 判定结果
             if (pullProgress > 0.8) {
-                // 拉得够长 -> 确认翻转
                 if (activeCard) revealCard(activeCard);
             } else {
-                // 拉得太短 (轻点也算太短) -> 弹回
                 if (activeCard) returnCard(activeCard);
             }
-            
-            // 重置进度
             pullProgress = 0;
         }
-        
         dragDirection = null;
     });
 }
@@ -1275,13 +1235,12 @@ function handleInput() {
         animateFinalFormation();
         return;
     }
-    // 🛑 新增：冷却期锁死
-    // 如果处于冷却期，什么都不许动，保持上一帧的画面
+
+    // 🛑 冷却期锁死
     if (isCoolingDown) return;
 
-
     // ==========================================
-    // 1. 物理引擎 (没抓牌时运行)
+    // 1. 物理引擎 (仅当没选中牌，且不在下拉抽卡时运行)
     // ==========================================
     if (!activeCard) {
         if (isInertia) {
@@ -1293,7 +1252,8 @@ function handleInput() {
                 snapToGrid();
             }
         }
-        // PC 兼容
+        
+        // 兼容 PC鼠标 / 摄像头手势转动 (只要没在触控拖拽)
         if (!isDragging && !isInertia && handState === 'OPEN') {
              const deadZone = 0.15;
              const speed = isMobile ? 0.015 : 0.02;
@@ -1305,6 +1265,7 @@ function handleInput() {
                   isHandRotating = false;
              }
         }
+
         // 应用旋转
         if (isDragging && dragDirection === 'X') {
             deckGroup.rotation.y = ringRotation;
@@ -1318,52 +1279,63 @@ function handleInput() {
     // ==========================================
     const newAxisCard = getAxisCard();
     centerCard = newAxisCard; 
-    
-    // PC 鼠标样式
+
+    // PC 鼠标样式反馈
     if (!isMobile && !isDragging) {
         if (Math.abs(handX) < 0.2 && centerCard && !isInertia) document.body.classList.add('can-grab');
         else document.body.classList.remove('can-grab');
     }
     
-    // PC 鼠标点击抓取保留
-    if (!isMobile && handState === 'PINCH' && centerCard && !activeCard && !isDragging && !isInertia) {
+    // ==========================================
+    // 3. 抓取逻辑 (Trigger Selection)
+    // ==========================================
+    
+    // 🛑 核心修复：
+    // 1. 只要 handState 是 PINCH (无论来自摄像头、鼠标、还是空格键)
+    // 2. 删掉了 !isMobile 限制，让手机摄像头也能用
+    // 3. 确保不是在触控下拉模式 (dragDirection !== 'Y')
+    if (handState === 'PINCH' && centerCard && !activeCard && !isDragging && !isInertia && dragDirection !== 'Y') {
         selectCard(centerCard);
     }
 
     // ==========================================
-    // 3. 选中后的动画 (区分 自动动画 vs 手动下拉)
+    // 4. 选中后的动画与交互
     // ==========================================
     
     if (activeCard) {
-        // 🚨 核心修改：如果是下拉模式，HandleInput 不干涉位置
+        // A. 下拉模式 (Touch) - 全权交给 touchmove 控制
         if (dragDirection === 'Y') {
-            // 位置由 touchmove 里的 updatePullingVisuals 控制
-            // 这里我们只需要维护一下状态，比如让 outline 消失
             if (activeCard.userData.outline) activeCard.userData.outline.visible = false;
         } 
+        // B. 自动模式 (Mouse / Camera)
         else {
-            // 🚨 否则 (比如鼠标点击，或者松手后的自动回弹)，使用自动动画
-            
             // 飞到眼前
             const targetZ = isMobile ? -3.5 : -2.2;
             activeCard.position.lerp(new THREE.Vector3(0, 0, targetZ), 0.1);
-            // Y轴归零
             activeCard.position.y = THREE.MathUtils.lerp(activeCard.position.y, 0, 0.1);
             
-            // 角度扶正
             if (activeCard.userData.state === 'SELECTED') {
                 const idleQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, 0));
                 activeCard.quaternion.slerp(idleQ, 0.1);
-                
-                // PC 端长按逻辑 (Touch端已经移除了这里)
-                if (!isMobile) {
-                    if (handState === 'PINCH') {
-                        if(!activeCard.userData.revealTimer) activeCard.userData.revealTimer = Date.now();
-                        if(Date.now() - activeCard.userData.revealTimer > 500) revealCard(activeCard);
-                    } else if (handState === 'OPEN') {
-                        activeCard.userData.revealTimer = null;
-                        returnCard(activeCard);
-                    }
+
+                // --- 揭示判定逻辑 ---
+
+                // 🛑 优先判断：握拳 (FIST) -> 立即揭示！
+                if (handState === 'FIST') {
+                     revealCard(activeCard);
+                }
+                // 🛑 其次判断：捏合 (PINCH) -> 长按计时揭示
+                else if (handState === 'PINCH') {
+                     if(!activeCard.userData.revealTimer) activeCard.userData.revealTimer = Date.now();
+                     // 这里设置了 800ms，你可以改小一点比如 500
+                     if(Date.now() - activeCard.userData.revealTimer > 800) {
+                         revealCard(activeCard);
+                     }
+                } 
+                // 🛑 最后判断：松手 (OPEN) -> 弹回
+                else if (handState === 'OPEN') {
+                    activeCard.userData.revealTimer = null;
+                    returnCard(activeCard);
                 }
             }
         }
