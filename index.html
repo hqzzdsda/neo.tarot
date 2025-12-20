@@ -745,6 +745,8 @@ let hasRevealed = false; // 标记：这次长按是否已经成功揭示了
 let dragDirection = null; // 'X' (旋转) 或 'Y' (下拉)
 let pullProgress = 0;     // 下拉进度 (0.0 ~ 1.0)
 const PULL_THRESHOLD = 150; // 下拉多少像素算确认翻牌
+let isCoolingDown = false; // 全局冷却锁
+const COOLDOWN_TIME = 300; // 冷却时间 (毫秒)，0.3秒比较合适
 
 
 // Game Logic Params
@@ -1273,11 +1275,14 @@ function handleInput() {
         animateFinalFormation();
         return;
     }
+    // 🛑 新增：冷却期锁死
+    // 如果处于冷却期，什么都不许动，保持上一帧的画面
+    if (isCoolingDown) return;
+
 
     // ==========================================
-    // 1. 物理引擎 (仅当 activeCard 为空时运行)
+    // 1. 物理引擎 (没抓牌时运行)
     // ==========================================
-    // 🔒 这里就是“冻结”的核心：只要 activeCard 还在(哪怕是在归位途中)，这里就不执行
     if (!activeCard) {
         if (isInertia) {
             ringRotation += touchVelocity * 15;
@@ -1288,7 +1293,6 @@ function handleInput() {
                 snapToGrid();
             }
         }
-        
         // PC 兼容
         if (!isDragging && !isInertia && handState === 'OPEN') {
              const deadZone = 0.15;
@@ -1301,7 +1305,7 @@ function handleInput() {
                   isHandRotating = false;
              }
         }
-
+        // 应用旋转
         if (isDragging && dragDirection === 'X') {
             deckGroup.rotation.y = ringRotation;
         } else {
@@ -1312,97 +1316,53 @@ function handleInput() {
     // ==========================================
     // 2. 中轴计算
     // ==========================================
-    // 🔒 因为 activeCard 没放开，这里依然会锁定返回中的那张卡为中轴
     const newAxisCard = getAxisCard();
     centerCard = newAxisCard; 
-
-    // PC 鼠标反馈
+    
+    // PC 鼠标样式
     if (!isMobile && !isDragging) {
         if (Math.abs(handX) < 0.2 && centerCard && !isInertia) document.body.classList.add('can-grab');
         else document.body.classList.remove('can-grab');
     }
     
-    // PC 点击
+    // PC 鼠标点击抓取保留
     if (!isMobile && handState === 'PINCH' && centerCard && !activeCard && !isDragging && !isInertia) {
         selectCard(centerCard);
     }
 
     // ==========================================
-    // 3. 选中/过渡 动画逻辑 (核心修改)
+    // 3. 选中后的动画 (区分 自动动画 vs 手动下拉)
     // ==========================================
     
     if (activeCard) {
-        // --- 场景 A：正在归位 (RETURNING) ---
-        if (activeCard.userData.state === 'RETURNING') {
-            // 1. 算出“老家”在世界坐标系的位置
-            // 公式：theta (原始角度) + ringRotation (当前圆环转过的角度)
-            const currentAngle = activeCard.userData.theta + deckGroup.rotation.y;
-            
-            const targetPos = new THREE.Vector3(
-                RADIUS * Math.sin(currentAngle),
-                0, // Y轴归零
-                -RADIUS * Math.cos(currentAngle)
-            );
-
-            // 2. 算出目标朝向 (看向圆心 0,0,0)
-            // 这里用一个小技巧：直接利用 LookAt 计算 Quaternion
-            const dummy = new THREE.Object3D();
-            dummy.position.copy(targetPos);
-            dummy.lookAt(0, 0, 0);
-
-            // 3. 执行飞行 (Lerp)
-            // 速度系数 0.15，比拉出来时稍微快一点点，显得干脆
-            activeCard.position.lerp(targetPos, 0.15);
-            activeCard.quaternion.slerp(dummy.quaternion, 0.15);
-
-            // 4. 判断到达 (Snap)
-            if (activeCard.position.distanceTo(targetPos) < 0.05) {
-                // 🛑 到了！归队！
-                
-                // 物理归位：把卡重新贴回圆环组里
-                deckGroup.attach(activeCard);
-                // 坐标归位：贴回去后，局部坐标就是初始坐标
-                activeCard.position.set(
-                    RADIUS * Math.sin(activeCard.userData.theta),
-                    0,
-                    -RADIUS * Math.cos(activeCard.userData.theta)
-                );
-                activeCard.rotation.set(0, Math.PI, 0); // 确保背面对着圆心(或正面，视你的模型朝向)
-                activeCard.lookAt(0,0,0); // 确保朝向正确
-
-                // 状态归位
-                activeCard.userData.state = 'IDLE';
-                
-                // 🔓 解锁系统！
-                activeCard = null; 
-            }
-        }
-        
-        // --- 场景 B：正在选中/被拉动 (SELECTED) ---
+        // 🚨 核心修改：如果是下拉模式，HandleInput 不干涉位置
+        if (dragDirection === 'Y') {
+            // 位置由 touchmove 里的 updatePullingVisuals 控制
+            // 这里我们只需要维护一下状态，比如让 outline 消失
+            if (activeCard.userData.outline) activeCard.userData.outline.visible = false;
+        } 
         else {
-            // 下拉模式：位置由 touchmove 控制，这里不干涉
-            if (dragDirection === 'Y') {
-                if (activeCard.userData.outline) activeCard.userData.outline.visible = false;
-            } 
-            // 自动模式（点击/鼠标）：飞到眼前
-            else {
-                const targetZ = isMobile ? -3.5 : -2.2;
-                activeCard.position.lerp(new THREE.Vector3(0, 0, targetZ), 0.1);
-                activeCard.position.y = THREE.MathUtils.lerp(activeCard.position.y, 0, 0.1);
+            // 🚨 否则 (比如鼠标点击，或者松手后的自动回弹)，使用自动动画
+            
+            // 飞到眼前
+            const targetZ = isMobile ? -3.5 : -2.2;
+            activeCard.position.lerp(new THREE.Vector3(0, 0, targetZ), 0.1);
+            // Y轴归零
+            activeCard.position.y = THREE.MathUtils.lerp(activeCard.position.y, 0, 0.1);
+            
+            // 角度扶正
+            if (activeCard.userData.state === 'SELECTED') {
+                const idleQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, 0));
+                activeCard.quaternion.slerp(idleQ, 0.1);
                 
-                if (activeCard.userData.state === 'SELECTED') {
-                    const idleQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, 0));
-                    activeCard.quaternion.slerp(idleQ, 0.1);
-
-                    // PC 端长按逻辑
-                    if (!isMobile) {
-                        if (handState === 'PINCH') {
-                            if(!activeCard.userData.revealTimer) activeCard.userData.revealTimer = Date.now();
-                            if(Date.now() - activeCard.userData.revealTimer > 500) revealCard(activeCard);
-                        } else if (handState === 'OPEN') {
-                            activeCard.userData.revealTimer = null;
-                            returnCard(activeCard);
-                        }
+                // PC 端长按逻辑 (Touch端已经移除了这里)
+                if (!isMobile) {
+                    if (handState === 'PINCH') {
+                        if(!activeCard.userData.revealTimer) activeCard.userData.revealTimer = Date.now();
+                        if(Date.now() - activeCard.userData.revealTimer > 500) revealCard(activeCard);
+                    } else if (handState === 'OPEN') {
+                        activeCard.userData.revealTimer = null;
+                        returnCard(activeCard);
                     }
                 }
             }
@@ -1445,28 +1405,52 @@ function selectCard(card) {
 }
 
 function returnCard(card) {
-    //deckGroup.attach(card);
+    deckGroup.attach(card);
     card.userData.state = 'RETURNING';
-    //activeCard = null;
+    activeCard = null;
 }
 
+// --- 修改后：归位后带有冷却期 ---
 function updateReturningCards() {
     cardObjects.forEach(card => {
         if (card.userData.state === 'RETURNING') {
+            // ... (原本的位移/旋转代码保持不变) ...
             const targetPos = new THREE.Vector3(
                 RADIUS * Math.sin(card.userData.theta), 
                 0, 
                 -RADIUS * Math.cos(card.userData.theta)
             );
-            card.position.lerp(targetPos, 0.08); 
+            card.position.lerp(targetPos, 0.08); // 用你之前的参数
+            
+            // 简单的旋转插值，确保归位时是正的
             const dummy = new THREE.Object3D();
             dummy.position.copy(card.position);
             dummy.lookAt(0,0,0);
             card.quaternion.slerp(dummy.quaternion, 0.08);
+
+            // 🛑 到达判断
             if (card.position.distanceTo(targetPos) < 0.05) {
+                // 1. 物理归位
+                deckGroup.attach(card);
+                card.position.set(
+                    RADIUS * Math.sin(card.userData.theta),
+                    0,
+                    -RADIUS * Math.cos(card.userData.theta)
+                );
+                card.rotation.set(0, Math.PI, 0); // 确保朝向正确
+                
+                // 2. 标记状态已完成
                 card.userData.state = 'IDLE';
-                card.position.copy(targetPos);
-                card.lookAt(0,0,0);
+
+                // 3. 🛑 核心修改：进入冷却期
+                isCoolingDown = true;
+                
+                // 4. 延迟解锁
+                setTimeout(() => {
+                    // 冷却结束，才允许系统去选别的卡，或者允许用户转动
+                    activeCard = null;
+                    isCoolingDown = false;
+                }, COOLDOWN_TIME);
             }
         }
     });
@@ -1504,35 +1488,31 @@ function revealCard(card) {
     animateFlip();
 }
 
-// --- 修改后：带“余韵锁定”的消解逻辑 ---
+// --- 修改后：翻牌后带有冷却期 ---
 function dissolve(card, isReversed) {
-    // 1. 视觉爆发
-    spawnParticles(card.position); // 播放粒子特效
-    card.visible = false;          // 3D卡片隐藏 (但在逻辑上它还在 activeCard 里)
-
-    // 2. 数据更新
+    spawnParticles(card.position);
     selectionCount++;
-    // 触发右上角历史栏的动画 (CSS中定义了 slotEnter 约 0.6s)
-    addToHistory(card.userData.rawData, isReversed); 
+    addToHistory(card.userData.rawData, isReversed);
     
-    chosen3DMeshes.push(card);
+    // 隐藏卡片
+    card.visible = false;
     card.userData.isChosen = true;
+    chosen3DMeshes.push(card); 
 
-    // 🛑 核心修改：延迟解锁 (人为制造“飞入历史记录”的冻结时间)
-    // 之前是立刻 activeCard = null，现在我们等 1秒
+    // 🛑 核心修改：进入冷却期
+    isCoolingDown = true;
+
+    // 延迟解锁
     setTimeout(() => {
-        // 1秒后，才告诉系统“这张卡处理完了”
-        // 这期间，因为 activeCard 不为空，物理引擎一直是锁死状态
+        // 只有冷却结束后，才释放 activeCard
+        // 这期间 getAxisCard 依然会认为 activeCard 是主角，从而锁定中轴
         activeCard = null;
-
-        // 检查是否结束
-        if (selectionCount >= MAX_SELECTION) {
-            startEndRitual();
-        }
+        isCoolingDown = false;
         
-    }, 1000); // ⏳ 1000毫秒 = 粒子消失 + 历史栏动画完成的时间
+        // 检查是否结束
+        if (selectionCount >= MAX_SELECTION) startEndRitual();
+    }, COOLDOWN_TIME);
 }
-
 function startEndRitual() {
     isRitualComplete = true;
     updateStatusText();
@@ -1850,7 +1830,7 @@ function animate() {
     starSystem.rotation.y += 0.0002;
     if (isStarted) {
         handleInput(); 
-        //updateReturningCards(); 
+        updateReturningCards(); 
         updateParticles();
         // 👉 新增：在这里调用视觉刷新
         updateCardVisuals();
