@@ -1290,26 +1290,25 @@ function handleInput() {
     // 3. 抓取逻辑 (Trigger Selection)
     // ==========================================
     
-    // 🛑 核心修复：
-    // 1. 只要 handState 是 PINCH (无论来自摄像头、鼠标、还是空格键)
-    // 2. 删掉了 !isMobile 限制，让手机摄像头也能用
-    // 3. 确保不是在触控下拉模式 (dragDirection !== 'Y')
+    // 只要 handState 是 PINCH，且有中轴卡，没抓别的，不是在下拉，不是在惯性
     if (handState === 'PINCH' && centerCard && !activeCard && !isDragging && !isInertia && dragDirection !== 'Y') {
         selectCard(centerCard);
     }
 
     // ==========================================
-    // 4. 选中后的动画与交互
+    // 4. 选中后的交互 (核心修改区域)
     // ==========================================
     
     if (activeCard) {
-        // A. 下拉模式 (Touch) - 全权交给 touchmove 控制
+        // --- A. 触控下拉模式 (Touch Pull) ---
+        // 全权交给 touchmove 控制，这里不干涉位置
         if (dragDirection === 'Y') {
             if (activeCard.userData.outline) activeCard.userData.outline.visible = false;
         } 
-        // B. 自动模式 (Mouse / Camera)
+        
+        // --- B. 自动模式 (Mouse / Camera) ---
         else {
-            // 飞到眼前
+            // 1. 基础动画：飞到眼前
             const targetZ = isMobile ? -3.5 : -2.2;
             activeCard.position.lerp(new THREE.Vector3(0, 0, targetZ), 0.1);
             activeCard.position.y = THREE.MathUtils.lerp(activeCard.position.y, 0, 0.1);
@@ -1318,24 +1317,42 @@ function handleInput() {
                 const idleQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, 0));
                 activeCard.quaternion.slerp(idleQ, 0.1);
 
-                // --- 揭示判定逻辑 ---
-
-                // 🛑 优先判断：握拳 (FIST) -> 立即揭示！
-                if (handState === 'FIST') {
-                     revealCard(activeCard);
+                // 2. 🚨 判定逻辑分流 🚨
+                
+                // === ✋ 分支 1：手势模式 (Hand Mode) ===
+                if (controlMode === 'hand') {
+                    // 规则：不握拳不翻转
+                    
+                    if (handState === 'FIST') {
+                        // 握拳 -> 立即翻转
+                        revealCard(activeCard);
+                    } 
+                    else if (handState === 'OPEN') {
+                        // 松手 -> 弹回
+                        returnCard(activeCard);
+                    }
+                    // 注意：如果是 PINCH，这里什么都不做。
+                    // 既不翻转，也不弹回，就悬停在空中让用户看。
                 }
-                // 🛑 其次判断：捏合 (PINCH) -> 长按计时揭示
-                else if (handState === 'PINCH') {
-                     if(!activeCard.userData.revealTimer) activeCard.userData.revealTimer = Date.now();
-                     // 这里设置了 800ms，你可以改小一点比如 500
-                     if(Date.now() - activeCard.userData.revealTimer > 800) {
-                         revealCard(activeCard);
-                     }
-                } 
-                // 🛑 最后判断：松手 (OPEN) -> 弹回
-                else if (handState === 'OPEN') {
-                    activeCard.userData.revealTimer = null;
-                    returnCard(activeCard);
+                
+                // === 🖱️ 分支 2：鼠标模式 (Mouse Mode) ===
+                else {
+                    // 规则：长按翻转
+                    
+                    if (handState === 'PINCH') {
+                        // 按住鼠标 -> 计时
+                        if(!activeCard.userData.revealTimer) activeCard.userData.revealTimer = Date.now();
+                        
+                        // 超过 500ms -> 翻转
+                        if(Date.now() - activeCard.userData.revealTimer > 500) {
+                            revealCard(activeCard);
+                        }
+                    } 
+                    else if (handState === 'OPEN') {
+                        // 松开鼠标 -> 弹回
+                        activeCard.userData.revealTimer = null;
+                        returnCard(activeCard);
+                    }
                 }
             }
         }
