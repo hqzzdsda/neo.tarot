@@ -6,23 +6,29 @@
     <title>Arcanum: Final Ritual</title>
     <style>
         /* --- 全局样式 (Global Styles) --- */
-        body { 
-            margin: 0; 
-            overflow: hidden; 
-            background-color: #000; 
-            font-family: 'Times New Roman', 'Songti SC', 'SimSun', serif; 
-            user-select: none; 
-            -webkit-tap-highlight-color: transparent; 
-        }
-        #canvas-container { 
-            width: 100vw; 
-            height: 100vh; 
-            position: absolute; 
-            top: 0; 
-            left: 0; 
-            z-index: 1; 
-        }
+html, body { 
+    margin: 0; 
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    /* 🔴 核心修改：强制禁止滚动，且固定定位 */
+    overflow: hidden; 
+    position: fixed; 
+    background-color: #000; 
+    font-family: 'Times New Roman', 'Songti SC', 'SimSun', serif; 
+    -webkit-tap-highlight-color: transparent;
+    /* 防止 iOS 橡皮筋回弹效果 */
+    overscroll-behavior: none;
+}
 
+#canvas-container { 
+    width: 100vw; 
+    height: 100vh; 
+    position: absolute; 
+    top: 0; 
+    left: 0; 
+    z-index: 1; 
+}
         /* 默认鼠标是指针 */
 body {
     cursor: default; 
@@ -808,6 +814,30 @@ body.is-grabbing {
     <div id="canvas-container"></div>
 
 <script>
+
+// ================= 移动端视口修正 =================
+
+// 1. 刷新时强制回到顶部，并禁用浏览器默认的“记住滚动位置”
+if ('scrollRestoration' in history) {
+    history.scrollRestoration = 'manual';
+}
+window.scrollTo(0, 0);
+
+// 2. 监听输入框失去焦点 (键盘收起)
+// 等 DOM 加载完再绑定
+window.addEventListener('DOMContentLoaded', () => {
+    const inputArea = document.getElementById('user-question');
+    if (inputArea) {
+        inputArea.addEventListener('blur', () => {
+            // 延时一点点，等键盘动画收完，强制滚回顶部
+            setTimeout(() => {
+                window.scrollTo(0, 0);
+                document.body.scrollTop = 0;
+            }, 100);
+        });
+    }
+});
+
 // ================= API 配置区域 =================
 // 🔴 请在这里填入你的 DeepSeek API Key (sk-xxxxxxxx)
 const API_KEY = "sk-92c5cec08baf4941a5ab5a185cd9c22f"; 
@@ -1036,6 +1066,12 @@ function enterExperience() {
 
 function submitQuestion() {
     const inputField = document.getElementById('user-question');
+    // 🔴 [新增] 主动让输入框失去焦点，触发键盘收起
+    inputField.blur();
+    
+    // 🔴 [新增] 强制复位视图，防止页面卡在半空中
+    window.scrollTo(0, 0);
+    document.body.scrollTop = 0;
     const val = inputField.value.trim();
     userQuestionText = val || (currentLang === 'zh' ? "我的命运指引" : "My general destiny");
 
