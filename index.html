@@ -1584,7 +1584,10 @@ function updateReturningCards() {
                     isCoolingDown = false;
                     // [新增] 只有当仪式还没彻底结束时，才恢复指引显示
                     if (!isRitualComplete && selectionCount < MAX_SELECTION) {
-                    toggleGuides(true);}
+                    // 必须检查 toggleGuides 是否存在，防止报错
+            if (typeof toggleGuides === 'function') {
+                toggleGuides(true);
+            }}
                 }, COOLDOWN_TIME);
             }
         }
@@ -1667,8 +1670,15 @@ function dissolve(card, isReversed) {
         activeCard = null;
         isCoolingDown = false;
         
-        // 检查是否结束
-        if (selectionCount >= MAX_SELECTION) startEndRitual();
+// 检查是否结束
+        if (selectionCount >= MAX_SELECTION) {
+            startEndRitual();
+        } else {
+            // 🟢 [新增] 如果还没选完 3 张，必须恢复显示指引，让用户选下一张
+            if (typeof toggleGuides === 'function') {
+                toggleGuides(true);
+            }
+        }
     }, COOLDOWN_TIME);
 }
 function startEndRitual() {
