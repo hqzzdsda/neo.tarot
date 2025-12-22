@@ -923,24 +923,41 @@ function submitQuestion() {
     const inputField = document.getElementById('user-question');
     const val = inputField.value.trim();
     
-    // 1. 获取问题（如果没填给默认值）
+    // 获取问题
     userQuestionText = val || (currentLang === 'zh' ? "我的命运指引" : "My general destiny");
 
-    // 2. 隐藏提问页
+    // --- 1. 处理界面隐藏 (修复挡住操作的问题) ---
     const inputScreen = document.getElementById('input-screen');
     inputScreen.style.opacity = 0;
-    // 这里的延时必须和CSS transition一致，等消失动画播完再隐藏DOM
+    // 🔴 关键修复：立即让它无法被点击，防止挡住 Canvas 的触摸事件
+    inputScreen.style.pointerEvents = 'none'; 
     setTimeout(() => { inputScreen.style.display = 'none'; }, 1000);
 
-    // 3. ✅ 正式启动游戏逻辑
-    isStarted = true;           // 开启物理循环
+    // --- 2. 重置物理变量 (修复旋转/中轴错乱问题) ---
+    // 确保一切从零开始，防止上次操作的残留干扰
+    ringRotation = 0; 
+    deckGroup.rotation.y = 0;
+    isDragging = false;
+    isInertia = false;
+    activeCard = null;
+    selectionCount = 0;
+    isRitualComplete = false;
     
+    // --- 3. 生成卡牌 ---
+    // 先生成数据，再开启游戏循环，防止除以零的错误
+    spawnDeck(); 
+
+    // --- 4. 正式开启循环 ---
+    isStarted = true;
     const ui = document.getElementById('ui-layer');
     ui.style.opacity = 1;
     
-    updateStatusText();         // 更新顶部提示
-    spawnDeck();                // ✅ 只有在这里才生成卡牌！
-    toggleGuides(true);
+    updateStatusText();
+    
+    // 显示指引 (加一个安全判断，防止报错)
+    if (typeof toggleGuides === 'function') {
+        toggleGuides(true);
+    }
 }
 /**
  * THREE.JS SCENE SETUP
