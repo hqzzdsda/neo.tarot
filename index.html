@@ -1103,8 +1103,8 @@ function updatePullingVisuals(card, progress) {
     const startY = 0;
     
     // 100% 的位置 (眼前确认位)
-    const endZ = isMobile ? -3.5 : -2.2;
-    const endY = -0.5; // 拉到屏幕下方一点
+    const endZ = isMobile ? -2.5 : -2.2;
+    const endY = 0; // 拉到屏幕下方一点
     
     // 插值计算
     const currentZ = THREE.MathUtils.lerp(startZ, endZ, progress);
