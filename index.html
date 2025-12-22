@@ -211,172 +211,130 @@ body.is-grabbing {
         }
 
 
-        /* --- 提问界面容器 --- */
+        /* --- 输入界面美化 (覆盖旧样式) --- */
 #input-screen {
     position: absolute;
     top: 0; left: 0; width: 100%; height: 100%;
     z-index: 90;
-    /* 背景：更加深邃的暗角效果 */
-    background: radial-gradient(circle at center, rgba(20,20,20,0.8) 0%, #000 90%);
+    /* 背景保持半透明，让背后的 3D 星空透出来 */
+    background: rgba(0, 0, 0, 0.4); 
     display: flex;
     justify-content: center;
     align-items: center;
     opacity: 0;
     transition: opacity 1.0s;
-    backdrop-filter: blur(5px); /* 背景模糊 */
+    backdrop-filter: blur(2px); /* 轻微模糊背景星空 */
 }
 
-/* --- 核心框架 (魔法阵/铭牌) --- */
-.input-frame {
-    position: relative;
+/* 磨砂玻璃卡片 */
+.input-card {
     width: 90%;
-    max-width: 600px;
-    padding: 60px 40px;
-    background: rgba(0, 0, 0, 0.4);
-    border: 1px solid rgba(212, 175, 55, 0.15); /* 极淡的金边 */
+    max-width: 400px;
+    padding: 40px 30px;
+    background: rgba(10, 10, 10, 0.6); /* 深色半透明底 */
+    border: 1px solid rgba(212, 175, 55, 0.2); /* 极淡的金边 */
     box-shadow: 0 0 50px rgba(0, 0, 0, 0.8);
+    border-radius: 4px; /*稍微圆角，不要太圆 */
     display: flex;
     flex-direction: column;
     align-items: center;
-    /* 出现动画 */
-    animation: frameFloat 6s ease-in-out infinite;
-}
-
-@keyframes frameFloat {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-5px); }
-}
-
-/* --- 四角装饰 (纯CSS画的直角) --- */
-.corner {
-    position: absolute;
-    width: 20px; height: 20px;
-    border-color: #d4af37;
-    border-style: solid;
-    opacity: 0.8;
-    transition: all 0.5s;
-}
-.top-left { top: -1px; left: -1px; border-width: 2px 0 0 2px; }
-.top-right { top: -1px; right: -1px; border-width: 2px 2px 0 0; }
-.bottom-left { bottom: -1px; left: -1px; border-width: 0 0 2px 2px; }
-.bottom-right { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; }
-
-/* 鼠标悬停时，四角发光 */
-.input-frame:hover .corner {
-    box-shadow: 0 0 10px #d4af37;
-    border-color: #fff;
-}
-
-/* --- 标题 --- */
-#input-prompt {
-    font-size: 24px;
-    color: #d4af37;
-    text-transform: uppercase;
-    letter-spacing: 6px;
-    margin: 0 0 40px 0;
-    text-shadow: 0 0 10px rgba(212, 175, 55, 0.3);
     text-align: center;
-    font-weight: 300;
-}
-
-/* --- 输入框区域 --- */
-.textarea-wrapper {
     position: relative;
-    width: 100%;
-    margin-bottom: 50px;
+    /* 磨砂效果关键 */
+    backdrop-filter: blur(10px); 
+    -webkit-backdrop-filter: blur(10px);
+    transform: translateY(0);
+    transition: transform 0.3s;
 }
 
+/* 顶部装饰星号 */
+.input-decoration {
+    color: #d4af37;
+    font-size: 20px;
+    margin-bottom: 15px;
+    opacity: 0.8;
+    animation: pulse 2s infinite;
+}
+
+/* 标题样式 */
+#input-prompt {
+    font-family: 'Times New Roman', serif; /* 强制衬线体 */
+    color: #fff;
+    font-size: 16px;
+    letter-spacing: 6px;
+    font-weight: 400;
+    margin: 0 0 30px 0;
+    text-transform: uppercase;
+    text-shadow: 0 0 10px rgba(212, 175, 55, 0.3);
+}
+
+/* 输入框样式 - 极简线条风 */
 #user-question {
     width: 100%;
     background: transparent;
     border: none;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    color: #fff;
-    font-family: 'Noto Serif SC', serif; /* 衬线体更有仪式感 */
-    font-size: 22px;
+    border-bottom: 1px solid rgba(212, 175, 55, 0.3); /* 只有底边线 */
+    color: #d4af37;
+    font-family: 'Times New Roman', serif;
+    font-size: 20px;
     text-align: center;
-    padding: 10px;
+    padding: 10px 0;
+    margin-bottom: 40px;
     outline: none;
-    resize: none; /* 禁止拖拽 */
-    overflow: hidden; /* 隐藏滚动条 */
+    resize: none;
+    border-radius: 0;
     transition: border-color 0.3s;
+}
+
+#user-question:focus {
+    border-bottom-color: #d4af37; /* 聚焦时线条变亮 */
 }
 
 #user-question::placeholder {
     color: rgba(255, 255, 255, 0.2);
-    font-size: 18px;
+    font-size: 14px;
+    letter-spacing: 2px;
     font-style: italic;
-    font-family: sans-serif;
-    letter-spacing: 1px;
 }
 
-/* 输入框底部的高亮线条 */
-.input-underline {
-    position: absolute;
-    bottom: 0;
-    left: 50%;
-    width: 0;
-    height: 2px;
-    background: #d4af37;
-    transition: width 0.4s ease, left 0.4s ease, box-shadow 0.4s;
-}
-
-/* 输入框获得焦点时的特效 */
-#user-question:focus + .input-underline {
-    width: 100%;
-    left: 0;
-    box-shadow: 0 0 15px #d4af37;
-}
-
-/* --- 确认按钮 --- */
+/* 按钮样式 */
 #confirm-question-btn {
     background: transparent;
-    color: rgba(212, 175, 55, 0.8);
-    border: 1px solid rgba(212, 175, 55, 0.3);
-    padding: 15px 50px;
-    font-size: 14px;
-    letter-spacing: 6px;
+    color: #d4af37;
+    border: 1px solid rgba(212, 175, 55, 0.4);
+    padding: 12px 50px;
+    font-size: 12px;
+    letter-spacing: 4px;
+    border-radius: 50px;
     cursor: pointer;
     font-family: inherit;
-    transition: all 0.5s cubic-bezier(0.23, 1, 0.32, 1);
-    position: relative;
-    overflow: hidden;
+    transition: all 0.4s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
-/* 按钮悬停特效 */
 #confirm-question-btn:hover {
     background: rgba(212, 175, 55, 0.1);
     border-color: #d4af37;
-    color: #fff;
-    box-shadow: 0 0 30px rgba(212, 175, 55, 0.2);
-    letter-spacing: 8px;
+    box-shadow: 0 0 20px rgba(212, 175, 55, 0.3);
+    transform: scale(1.05);
 }
 
-/* --- 移动端专门优化 --- */
+/* 移动端特殊适配 */
 @media (max-width: 768px) {
-    .input-frame {
+    .input-card {
+        padding: 30px 20px;
         width: 85%;
-        padding: 40px 20px;
-        /* 手机上为了防遮挡，稍微靠上一点 */
-        transform: translateY(-10%) !important; 
+        margin-top: -10%; /* 稍微往上提一点，避开手机键盘 */
     }
-    
     #input-prompt {
-        font-size: 18px;
+        font-size: 14px;
         letter-spacing: 4px;
-        margin-bottom: 30px;
     }
-
     #user-question {
         font-size: 18px;
-    }
-    
-    #confirm-question-btn {
-        padding: 12px 40px;
-        width: 100%; /* 手机上按钮全宽 */
-        font-size: 12px;
+        margin-bottom: 30px;
     }
 }
+
         /* --- 游戏内 UI 层 --- */
         #ui-layer { 
             position: absolute; 
@@ -810,22 +768,10 @@ body.is-grabbing {
     </div>
 
 <div id="input-screen" style="display: none;">
-    <div class="input-frame">
-        <div class="corner top-left"></div>
-        <div class="corner top-right"></div>
-        <div class="corner bottom-left"></div>
-        <div class="corner bottom-right"></div>
-        
-        <div class="input-content">
-            <h2 id="input-prompt">What do you seek?</h2>
-            
-            <div class="textarea-wrapper">
-                <textarea id="user-question" rows="1" maxlength="50" oninput="autoResize(this)"></textarea>
-                <div class="input-underline"></div>
-            </div>
-            
-            <button id="confirm-question-btn" onclick="submitQuestion()">BEGIN RITUAL</button>
-        </div>
+    <div class="input-card">
+        <div class="input-decoration">✦</div> <h2 id="input-prompt">CONSULT THE VOID</h2>
+        <div class="input-line"></div>
+        <textarea id="user-question" rows="1" maxlength="50"></textarea> <button id="confirm-question-btn" onclick="submitQuestion()">INITIATE</button>
     </div>
 </div>
 
@@ -934,9 +880,9 @@ const TEXTS = {
         restart: "RESTART RITUAL",
         btnHand: "Hand Gesture ✋", 
         btnMouse: isMobile ? "Touch Control 👆" : "Mouse Control 🖱️",
-        inputPrompt: "What calls to you from the void?",
-        inputPlaceholder: "Focus on your question...",
-        btnBegin: "BEGIN RITUAL"       
+        inputPrompt: "What do you seek?",
+        inputPlaceholder: "Enter your query...",
+        btnBegin: "SEEK ANSWER"       
     },
     zh: {
         subtitle: "虚拟塔罗仪式",
@@ -954,9 +900,9 @@ const TEXTS = {
         restart: "重新开始仪式",
         btnHand: "手势控制 ✋", 
         btnMouse: isMobile ? "触屏控制 👆" : "鼠标控制 🖱️",  
-        inputPrompt: "心中所惑，为何事？",
-        inputPlaceholder: "在此输入你想咨询的问题...",
-        btnBegin: "开启仪式"
+        inputPrompt: "心中所问",
+        inputPlaceholder: "在此输入...",
+        btnBegin: "开始探寻"
     }
 };
 
@@ -1086,19 +1032,6 @@ function enterExperience() {
         inputScreen.style.opacity = 1;
         document.getElementById('user-question').focus();
     }, 100);
-}
-
-// --- 辅助：输入框高度自适应 ---
-function autoResize(textarea) {
-    textarea.style.height = 'auto'; // 先重置高度
-    textarea.style.height = textarea.scrollHeight + 'px'; // 再设置为内容高度
-    
-    // 限制最大高度，防止撑破屏幕
-    if (textarea.scrollHeight > 150) {
-        textarea.style.overflowY = "scroll";
-    } else {
-        textarea.style.overflowY = "hidden";
-    }
 }
 
 function submitQuestion() {
