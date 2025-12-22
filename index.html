@@ -888,17 +888,12 @@ function enterExperience() {
     screen.style.pointerEvents = 'none';
     setTimeout(() => { screen.style.display = 'none'; }, 1000);
 
-    // 2. 初始化设备
-    if (controlMode === 'hand') {
-        document.getElementById('video-feed').style.opacity = 0.3;
-        initCamera();
-    } else {
-        initMouseListeners();
-        initTouchListeners();
-    }
+    // 🔴 [移除] 不要在这里初始化 initCamera / initMouseListeners / initTouchListeners
+    // 移到 submitQuestion 里去
+    // 这里只保留相机位置更新
     updateCameraPos();
 
-    // 3. 显示提问页
+    // 2. 显示提问页
     const inputScreen = document.getElementById('input-screen');
     inputScreen.style.display = 'flex';
     
@@ -911,9 +906,6 @@ function enterExperience() {
         inputScreen.style.opacity = 1;
         document.getElementById('user-question').focus();
     }, 100);
-
-    // 🔴 检查：确保这里【没有】 isStarted = true;
-    // 🔴 检查：确保这里【没有】 spawnDeck();
 }
 
 function submitQuestion() {
@@ -926,19 +918,29 @@ function submitQuestion() {
     inputScreen.style.opacity = 0;
     setTimeout(() => { inputScreen.style.display = 'none'; }, 1000);
 
-    // 2. 显示UI层
+    // 2. 正式开始逻辑
+    isStarted = true;
     const ui = document.getElementById('ui-layer');
     ui.style.opacity = 1;
-    updateStatusText();
-
-    // 3. 🟢 核心修复序列：
-    spawnDeck();        // A. 先生成卡牌数据 (deckList 长度不再是0)
-    ringRotation = 0;   // B. 强制重置旋转角度 (防止之前计算出的 NaN 残留)
-    isStarted = true;   // C. 最后才允许物理引擎启动
     
+    updateStatusText();
+    spawnDeck(); // 先生成卡牌！
+    
+    // 🟢 [新增] 只有卡牌生成了，才允许初始化控制
+    // 这样就不会出现“除以零”的错误了
+    if (controlMode === 'hand') {
+        document.getElementById('video-feed').style.opacity = 0.3;
+        initCamera();
+    } else {
+        initMouseListeners();
+        initTouchListeners();
+        initHUDListeners(); // 别忘了 HUD 监听
+    }
+
     // 显示指引
     if (typeof toggleGuides === 'function') toggleGuides(true);
 }
+
 /**
  * THREE.JS SCENE SETUP
  */
@@ -1501,7 +1503,7 @@ function handleInput() {
 
 // --- 新增：强制归位逻辑 ---
 function snapToGrid() {
-    if (!deckList || deckList.length === 0) return;
+    if (deckList.length === 0) return;
     // 1. 算出每张牌的间隔角度 (弧度)
     // 22张牌，一圈是 2PI
     const step = (Math.PI * 2) / deckList.length;
