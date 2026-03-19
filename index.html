@@ -2163,8 +2163,43 @@
         }).join("\n");
 
         const prompt = currentLang === 'zh'
-            ? `你是一位神秘的塔罗牌占卜师。求问者的问题是：“${userQuestionText}”。\n请根据以下牌阵为求问者解读：\n${cardDescriptions}\n\n要求：\n1. 用中文回答。\n2. 必须结合求问者的问题进行解答。\n3. 风格神秘、诗意。\n4. 将三张牌串联成一个完整的故事。\n5. 字数控制在150字以内。`
-            : `You are a mystical Tarot reader. The seeker asks: "${userQuestionText}".\nInterpret the following spread:\n${cardDescriptions}\n\nRequirements:\n1. Answer in English.\n2. Directly address the seeker's question.\n3. Tone: Mystical, poetic.\n4. Weave the cards into a coherent narrative.\n5. Keep it under 150 words.`;
+  ? `你是一位专业的塔罗占卜师，请基于用户问题与抽到的牌进行解读。
+
+【用户问题】
+${userQuestionText}
+
+【牌面信息】
+${cardDescriptions}
+
+【解读要求】
+1. 必须围绕用户问题进行回答，不能泛泛而谈；
+2. 每张牌都要体现其含义，并串联成一个完整逻辑；
+3. 输出结构必须清晰，分为三部分：
+   - 当前状态（对应第一张牌）
+   - 发展趋势（对应第二张牌）
+   - 建议或启示（对应第三张牌）
+4. 风格保持神秘、温和、具有引导性，不得使用绝对判断；
+5. 避免过度夸张或虚假承诺；
+6. 控制在120-150字以内。`
+
+  : `You are a professional Tarot reader. Interpret the cards based on the user's question.
+
+[User Question]
+${userQuestionText}
+
+[Card Information]
+${cardDescriptions}
+
+[Requirements]
+1. Focus strictly on the user's question—avoid generic interpretation;
+2. Reflect the meaning of each card and connect them into a coherent narrative;
+3. Structure the output into three parts:
+   - Current Situation (first card)
+   - Development Trend (second card)
+   - Advice or Insight (third card)
+4. Maintain a mystical, gentle, and guiding tone; avoid absolute judgments;
+5. Do not exaggerate or make unrealistic promises;
+6. Keep the answer within 120–150 words.`;
         // AbortController for Timeout / 增加 AbortController 用于超时控制
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s Timeout / 20秒超时
