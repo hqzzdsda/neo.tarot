@@ -2,9 +2,9 @@
   <h1>🕶️ Neo Tarot | neo塔罗</h1>
   <h3>The Cyber Arcanum / 赛博奥秘</h3>
   <p>
-    <strong>Visual Gesture Control × DeepSeek Brain × Pure HTML</strong>
+    <strong>Visual Gesture Control × LLM Brain × Pure HTML</strong>
     <br>
-    视觉手势识别 × DeepSeek 大脑 × 纯原生手搓
+    视觉手势识别 × LLM 大脑 × 纯原生手搓
   </p>
 
 <p>
@@ -44,7 +44,7 @@ This project is an "AI Chimera". I am just the prompt engineer.
 | Role / 职责 | AI Model / 模型 | Description / 描述 |
 | :--- | :--- | :--- |
 | **The Architect** <br> 架构师 & 码农 | **Gemini** | Wrote 99% of the Vanilla JS code. <br> 写了 99% 的代码，虽然有时候它自己看了都摇头。 |
-| **The Oracle** <br> 先知 | **DeepSeek V3** | Provides sharp, personalized readings. <br> 拒绝废话，提供直击灵魂的个性化解牌。 |
+| **The Oracle** <br> 先知 | **Your API** | Provides sharp, personalized readings. <br> 拒绝废话，提供直击灵魂的个性化解牌。 |
 | **The Artist** <br> 宫廷画师 | **ChatGPT (DALL-E 3)** | Generated all the tarot card assets. <br> 生成了所有的塔罗牌面。 |
 | **The Eyes** <br> 视觉中枢 | **MediaPipe** | Hand tracking & Gesture recognition. <br> 让你的摄像头看懂你的手势。 |
 | **The Bard** <br> 吟游诗人 | **Suno** | Generated the immersive BGM. <br> 生成了赛博风背景音乐。 |
@@ -61,13 +61,13 @@ Forget the mouse. Use your hand to shuffle and draw cards in the air.
 </div>
 
 
-### 2. 🧠 DeepSeek Integration / 接入 DeepSeek
+### 2. 🧠 LLM Integration / 接入 LLM
 We don't use hard-coded interpretations. Every reading is generated in real-time based on your specific question.
 拒绝死板的固定话术。每一条解牌都是根据你的具体问题，由大模型实时生成的。
 
 ### 3. 📱 Cross-Platform / 双端适配
 - **Desktop**: Air Gestures (immersive mode).
-- **Mobile**: Touch controls (lazy mode).
+- **Mobile**: Touch controls (lazy mod e).
 - **电脑端**：沉浸式隔空手势。
 - **手机端**：躺平式触屏操作。
 
