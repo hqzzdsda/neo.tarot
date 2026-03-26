@@ -111,19 +111,6 @@ python -m http.server 8000
 # Or use "Live Server" extension in VS Code.
 ```
 
-## ⚙️ Configuration / 配置
-
-To use your own API Key (DeepSeek/Gemini), open `script.js` and find the following line:
-如果你想使用自己的 API Key（因为内置额度可能用完），请打开 `script.js` 并修改：
-
-```javascript
-// Replace with your own key if the free quota runs out
-// 如果免费额度用完了，请替换为你自己的 Key
-const API_KEY = "sk-xxxxxxxxxxxxxxxxxxxxxxxx";
-```
-
-Note: Since this is a client-side app, your key is visible in the source code. It is recommended to set usage limits on your API provider's dashboard. 注意：由于这是纯前端应用，Key 会暴露在源码中。建议在 API 提供商后台设置用量上限以防盗刷。
-
 ## 💬 Feedback / 反馈
 I built this as a coding beginner with Gemini's magic. 作为一个代码小白，这是我在 Gemini 的魔法下完成的作品。
 
